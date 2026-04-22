@@ -14,13 +14,9 @@ export default function RecuperarEmailScreen({ navigation }) {
     setCarregando(true);
     await new Promise(r => setTimeout(r, 700));
     const usuario = buscarPorEmail(email.trim());
+    const codigo = usuario ? Math.floor(10000000 + Math.random() * 90000000).toString() : '00000000';
     setCarregando(false);
-    const codigo = Math.floor(10000000 + Math.random() * 90000000).toString();
-    if (usuario) {
-      navigation.navigate('RecuperarCodigo', { email: email.trim(), codigoMock: codigo });
-    } else {
-      Alert.alert('Verificação enviada', 'Se este e-mail estiver cadastrado, você receberá o código em instantes.');
-    }
+    navigation.navigate('RecuperarCodigo', { email: email.trim(), codigoMock: codigo });
   }
 
   return (
