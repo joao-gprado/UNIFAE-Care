@@ -20,7 +20,7 @@ export default function LoginScreen({ navigation }) {
     setCarregando(false);
     if (usuario) {
       await AsyncStorage.setItem('@usuario', JSON.stringify(usuario));
-      Alert.alert('Bem-vindo!', `Olá, ${usuario.nome}!`);
+      navigation.replace('MainTabs');
     } else {
       Alert.alert('Erro', 'E-mail ou senha incorretos.');
     }
