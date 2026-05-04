@@ -1,11 +1,19 @@
+// src/navigation/MainTabs.js
 import React from 'react';
 import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
-const ICONS = { Início: '🏠', Agenda: '📅', Progresso: '📈', Perfil: '👤' };
+const ICONS = {
+  Início:     '🏠',
+  Exercícios: '🦾',
+  Relatos:    '📋',
+  Progresso:  '📊',
+  Perfil:     '👤',
+};
 
 export default function MainTabs() {
   return (
@@ -13,7 +21,7 @@ export default function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused }) => (
-          <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>
+          <Text style={{ fontSize: 19, opacity: focused ? 1 : 0.4 }}>
             {ICONS[route.name]}
           </Text>
         ),
@@ -27,10 +35,11 @@ export default function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Início" component={ProfileScreen} />
-      <Tab.Screen name="Agenda" component={ProfileScreen} />
-      <Tab.Screen name="Progresso" component={ProfileScreen} />
-      <Tab.Screen name="Perfil" component={ProfileScreen} />
+      <Tab.Screen name="Início"     component={HomeScreen} />
+      <Tab.Screen name="Exercícios" component={HomeScreen} />
+      <Tab.Screen name="Relatos"    component={HomeScreen} />
+      <Tab.Screen name="Progresso"  component={HomeScreen} />
+      <Tab.Screen name="Perfil"     component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
