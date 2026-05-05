@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,41 +9,14 @@ import {
   Platform,
   StatusBar,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
 import { COLORS, SPACING, RADIUS } from '../theme';
 
-// ─── Mock de dados ─────────────────────────────────────────────────────────────
-
-const MOCK = {
-  usuario: {
-    nome: 'Ana',
-  },
-  progressoSemanal: 78,
-  planoDoDia: [
-    {
-      id: '1',
-      titulo: 'Mobilidade de Ombro',
-      descricao: 'Pós-cirúrgico • Câncer de mama',
-      tempoMedio: 12,
-      concluido: false,
-    },
-    {
-      id: '2',
-      titulo: 'Alongamento Cervical',
-      descricao: 'Tensão muscular • Rotina diária',
-      tempoMedio: 8,
-      concluido: false,
-    },
-    {
-      id: '3',
-      titulo: 'Fortalecimento de Core',
-      descricao: 'Reabilitação • Pós-operatório',
-      tempoMedio: 20,
-      concluido: true,
-    },
-  ],
-};
+import { ROUTES, buildHeaders } from '../services/api';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -66,14 +39,7 @@ function ProgressRing({ percent, size = 90, stroke = 9 }) {
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        {/* trilha cinza */}
-        <Circle
-          cx={cx} cy={cy} r={r}
-          stroke="#DDE8DE"
-          strokeWidth={stroke}
-          fill="none"
-        />
-        {/* arco de progresso */}
+        <Circle cx={cx} cy={cy} r={r} stroke="#DDE8DE" strokeWidth={stroke} fill="none" />
         <Circle
           cx={cx} cy={cy} r={r}
           stroke={COLORS.primary}
@@ -85,7 +51,6 @@ function ProgressRing({ percent, size = 90, stroke = 9 }) {
           transform={`rotate(-90 ${cx} ${cy})`}
         />
       </Svg>
-      {/* texto centralizado sobre o SVG */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: size * 0.2, fontWeight: '800', color: '#1a5d38' }}>
@@ -128,39 +93,20 @@ const headerStyles = StyleSheet.create({
     paddingTop: SPACING.md,
     paddingBottom: SPACING.lg,
   },
-  textBlock: {
-    flex: 1,
-    paddingRight: SPACING.md,
-  },
+  textBlock: { flex: 1, paddingRight: SPACING.md },
   greeting: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1a5d38',
-    letterSpacing: -0.5,
-    marginBottom: 6,
+    fontSize: 28, fontWeight: '800', color: '#1a5d38',
+    letterSpacing: -0.5, marginBottom: 6,
   },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textMedium,
-    lineHeight: 21,
-  },
+  subtitle: { fontSize: 14, color: COLORS.textMedium, lineHeight: 21 },
   bellButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 42, height: 42, borderRadius: 21,
     backgroundColor: COLORS.backgroundWhite,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    marginTop: 4,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2, marginTop: 4,
   },
-  bellIcon: {
-    fontSize: 18,
-  },
+  bellIcon: { fontSize: 18 },
 });
 
 // ─── Subcomponente: PlanCard ───────────────────────────────────────────────────
@@ -223,93 +169,42 @@ const planStyles = StyleSheet.create({
     padding: SPACING.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: SPACING.md,
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textDark,
-  },
-  badge: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark },
+  badge: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
   exerciseBlock: {
-    backgroundColor: '#F8FAF8',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
+    backgroundColor: '#F8FAF8', borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md,
+    borderLeftWidth: 3, borderLeftColor: COLORS.primary,
   },
   exerciseInfo: {},
-  exerciseTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1a5d38',
-    marginBottom: 4,
-  },
-  exerciseDesc: {
-    fontSize: 13,
-    color: COLORS.textMedium,
-    marginBottom: 10,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  clockIcon: {
-    fontSize: 13,
-  },
-  timeText: {
-    fontSize: 13,
-    color: COLORS.textMedium,
-    fontWeight: '500',
-  },
+  exerciseTitle: { fontSize: 17, fontWeight: '700', color: '#1a5d38', marginBottom: 4 },
+  exerciseDesc: { fontSize: 13, color: COLORS.textMedium, marginBottom: 10 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  clockIcon: { fontSize: 13 },
+  timeText: { fontSize: 13, color: COLORS.textMedium, fontWeight: '500' },
   emptyBlock: {
-    backgroundColor: '#F0FBF3',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    alignItems: 'center',
+    backgroundColor: '#F0FBF3', borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md, alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
+  emptyText: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
   startButton: {
-    backgroundColor: '#1a5d38',
-    borderRadius: RADIUS.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
+    backgroundColor: '#1a5d38', borderRadius: RADIUS.lg,
+    paddingVertical: 16, alignItems: 'center',
   },
-  startButtonDisabled: {
-    backgroundColor: COLORS.textLight,
-  },
-  startButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
+  startButtonDisabled: { backgroundColor: COLORS.textLight },
+  startButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 });
 
 // ─── Subcomponente: ProgressCard ───────────────────────────────────────────────
 
 function ProgressCard({ percent }) {
   const { texto, emoji } = getMensagemProgresso(percent);
-
   return (
     <View style={progressStyles.card}>
       <Text style={progressStyles.cardTitle}>Seu progresso</Text>
@@ -326,48 +221,109 @@ function ProgressCard({ percent }) {
 
 const progressStyles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.backgroundWhite,
-    borderRadius: RADIUS.xl,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    backgroundColor: COLORS.backgroundWhite, borderRadius: RADIUS.xl,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textDark,
-    marginBottom: SPACING.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  messageBlock: {
-    flex: 1,
-    gap: 4,
-  },
-  emoji: {
-    fontSize: 22,
-    marginBottom: 2,
-  },
-  message: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textDark,
-    lineHeight: 20,
-  },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginBottom: SPACING.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  messageBlock: { flex: 1, gap: 4 },
+  emoji: { fontSize: 22, marginBottom: 2 },
+  message: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, lineHeight: 20 },
 });
+
+// ─── Normalização de dados da API ──────────────────────────────────────────────
+// Adapta diferentes estruturas de resposta para o formato interno da tela.
+
+function normalizarExercicios(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item, i) => ({
+    id:        String(item.id ?? i),
+    titulo:    item.titulo   ?? item.title    ?? item.name        ?? 'Exercício',
+    descricao: item.descricao ?? item.description ?? item.subtitle ?? '',
+    tempoMedio: item.tempoMedio ?? item.duration ?? item.durationMinutes ?? 0,
+    concluido: item.concluido  ?? item.completed  ?? item.done    ?? false,
+  }));
+}
 
 // ─── Tela principal ────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const [dados] = useState(MOCK);
+  const [nomeUsuario, setNomeUsuario]         = useState('');
+  const [progressoSemanal, setProgressoSemanal] = useState(0);
+  const [planoDoDia, setPlanoDoDia]           = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [refreshing, setRefreshing]           = useState(false);
+  const [erro, setErro]                       = useState(null);
+
+  const carregarDados = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setErro(null);
+
+    try {
+      const token = await AsyncStorage.getItem('@token');
+      const headers = buildHeaders(token);
+
+      // Rota unificada que retorna perfil, progresso semanal e dados do app
+      const response = await fetch(ROUTES.homeProfile, { headers });
+
+      if (response.ok) {
+        const json = await response.json();
+
+        // Nome do usuário vem em json.profile.name
+        const nome = json.profile?.name ?? json.profile?.firstName ?? '';
+        setNomeUsuario(nome);
+
+        // Progresso semanal vem em json.weeklyProgress.percentCompleted
+        const pct = json.weeklyProgress?.percentCompleted
+          ?? json.weeklyProgress?.percent
+          ?? 0;
+        setProgressoSemanal(pct);
+
+        // Exercícios do dia — se a API retornar no futuro, normaliza aqui
+        const exerciciosRaw = json.exercises ?? json.todayExercises ?? json.data ?? [];
+        setPlanoDoDia(normalizarExercicios(exerciciosRaw));
+
+      } else {
+        // Fallback: usa dado salvo no login para o nome
+        const usuarioSalvo = await AsyncStorage.getItem('@usuario');
+        if (usuarioSalvo) {
+          const u = JSON.parse(usuarioSalvo);
+          setNomeUsuario(u.nome ?? u.name ?? u.firstName ?? '');
+        }
+        const json = await response.json().catch(() => ({}));
+        const mensagem = json.message || json.error || 'Erro ao carregar dados da home.';
+        setErro(mensagem);
+      }
+
+    } catch (error) {
+      // Fallback de nome em caso de falha de rede
+      try {
+        const usuarioSalvo = await AsyncStorage.getItem('@usuario');
+        if (usuarioSalvo) {
+          const u = JSON.parse(usuarioSalvo);
+          setNomeUsuario(u.nome ?? u.name ?? u.firstName ?? '');
+        }
+      } catch (_) {}
+      setErro('Não foi possível carregar os dados. Verifique sua conexão.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { carregarDados(); }, [carregarDados]);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={COLORS.primary ?? '#2A7A3B'} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -376,27 +332,50 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => carregarDados(true)}
+            colors={[COLORS.primary ?? '#2A7A3B']}
+          />
+        }
       >
-        <HeaderSection nome={dados.usuario.nome} />
-        <PlanCard exercicios={dados.planoDoDia} />
-        <ProgressCard percent={dados.progressoSemanal} />
+        {erro ? (
+          <View style={styles.erroBanner}>
+            <Text style={styles.erroTexto}>{erro}</Text>
+            <TouchableOpacity onPress={() => carregarDados()}>
+              <Text style={styles.erroLink}>Tentar novamente</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <HeaderSection nome={nomeUsuario || 'Usuário'} />
+        <PlanCard exercicios={planoDoDia} />
+        <ProgressCard percent={progressoSemanal} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scroll: {
-    flex: 1,
-  },
+  root: { flex: 1, backgroundColor: COLORS.background },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background },
+  scroll: { flex: 1 },
   content: {
     paddingTop: Platform.OS === 'android'
       ? (StatusBar.currentHeight ?? 24) + 8
       : 16,
     paddingBottom: 100,
   },
+  erroBanner: {
+    backgroundColor: '#FFF5F5',
+    borderLeftWidth: 4,
+    borderLeftColor: '#E53E3E',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: 10,
+    padding: 14,
+  },
+  erroTexto: { fontSize: 13, color: '#E53E3E', marginBottom: 6 },
+  erroLink: { fontSize: 13, color: '#2A7A3B', fontWeight: '700' },
 });

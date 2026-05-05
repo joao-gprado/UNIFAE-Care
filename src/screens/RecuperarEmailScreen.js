@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { buscarPorEmail } from '../data/usuarios';
+
+const BASE_URL = 'http://185.217.125.219:3000/api/v1';
 
 export default function RecuperarEmailScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -12,11 +13,25 @@ export default function RecuperarEmailScreen({ navigation }) {
       return;
     }
     setCarregando(true);
-    await new Promise(r => setTimeout(r, 700));
-    const usuario = buscarPorEmail(email.trim());
-    const codigo = usuario ? Math.floor(10000000 + Math.random() * 90000000).toString() : '00000000';
-    setCarregando(false);
-    navigation.navigate('RecuperarCodigo', { email: email.trim(), codigoMock: codigo });
+    try {
+      const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        // Navega passando apenas o e-mail; o código é validado pela API
+        navigation.navigate('RecuperarCodigo', { email: email.trim() });
+      } else {
+        const mensagem = json.message || json.error || 'Não foi possível enviar o código. Tente novamente.';
+        Alert.alert('Erro', mensagem);
+      }
+    } catch (error) {
+      Alert.alert('Erro de conexão', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
   }
 
   return (
@@ -63,112 +78,34 @@ export default function RecuperarEmailScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  voltar: {
-    marginBottom: 20,
-  },
-  voltarTexto: {
-    color: '#2a7a4b',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  titulo: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitulo: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 28,
-    lineHeight: 20,
-  },
+  flex: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 },
+  voltar: { marginBottom: 20 },
+  voltarTexto: { color: '#2a7a4b', fontWeight: '600', fontSize: 15 },
+  logo: { width: 100, height: 100, alignSelf: 'center', marginBottom: 20 },
+  titulo: { fontSize: 24, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', marginBottom: 8 },
+  subtitulo: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 28, lineHeight: 20 },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#888',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
+  label: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8, letterSpacing: 0.5 },
   input: {
-    backgroundColor: '#efefef',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    height: 50,
-    fontSize: 15,
-    color: '#1a1a1a',
-    marginBottom: 16,
+    backgroundColor: '#efefef', borderRadius: 10, paddingHorizontal: 16,
+    height: 50, fontSize: 15, color: '#1a1a1a', marginBottom: 16,
   },
   botao: {
-    backgroundColor: '#2a7a4b',
-    borderRadius: 10,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    backgroundColor: '#2a7a4b', borderRadius: 10, height: 52,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  botaoTexto: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  linkWrapper: {
-    alignItems: 'center',
-  },
-  link: {
-    color: '#2a7a4b',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  botaoTexto: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  linkWrapper: { alignItems: 'center' },
+  link: { color: '#2a7a4b', fontWeight: '600', fontSize: 14 },
   infoBox: {
-    backgroundColor: '#edf7f0',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2a7a4b',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 32,
+    backgroundColor: '#edf7f0', borderLeftWidth: 4, borderLeftColor: '#2a7a4b',
+    borderRadius: 10, padding: 16, marginBottom: 32,
   },
-  infoTitulo: {
-    fontWeight: '700',
-    fontSize: 13,
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  infoTexto: {
-    fontSize: 13,
-    color: '#555',
-    lineHeight: 18,
-  },
+  infoTitulo: { fontWeight: '700', fontSize: 13, color: '#1a1a1a', marginBottom: 4 },
+  infoTexto: { fontSize: 13, color: '#555', lineHeight: 18 },
 });

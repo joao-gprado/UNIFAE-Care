@@ -12,7 +12,8 @@ import {
   StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getPerfil } from '../data/perfil';
+
+import { ROUTES, buildHeaders } from '../services/api';
 
 const COLORS = {
   primary:       '#2A7A3B',
@@ -223,15 +224,34 @@ const settingsStyles = StyleSheet.create({
 export default function ProfileScreen({ navigation }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro]       = useState(null);
 
   useEffect(() => {
-    // Simula latência de carregamento, igual ao padrão do LoginScreen
-    const timer = setTimeout(() => {
-      setData(getPerfil());
-      setLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
+    carregarPerfil();
   }, []);
+
+  async function carregarPerfil() {
+    setLoading(true);
+    setErro(null);
+    try {
+      const token = await AsyncStorage.getItem('@token');
+      const response = await fetch(ROUTES.homeProfile, {
+        method: 'GET',
+        headers: buildHeaders(token),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setData(json);
+      } else {
+        const mensagem = json.message || json.error || 'Erro ao carregar perfil.';
+        setErro(mensagem);
+      }
+    } catch (error) {
+      setErro('Não foi possível conectar ao servidor.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleLogout = () => {
     Alert.alert(
@@ -243,7 +263,7 @@ export default function ProfileScreen({ navigation }) {
           text: 'Sair',
           style: 'destructive',
           onPress: async () => {
-            await AsyncStorage.removeItem('@usuario');
+            await AsyncStorage.multiRemove(['@token', '@usuario']);
             navigation.replace('Login');
           },
         },
@@ -252,7 +272,6 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const handleNavPress = (tela) => {
-    // Troque por navigation.navigate(tela) quando criar as telas
     Alert.alert(tela, 'Em breve esta seção estará disponível.');
   };
 
@@ -265,7 +284,24 @@ export default function ProfileScreen({ navigation }) {
     );
   }
 
-  const { profile, responsibleStudent, coordinator, weeklyProgress, app } = data;
+  if (erro) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.erroTexto}>{erro}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={carregarPerfil}>
+          <Text style={styles.retryTexto}>Tentar novamente</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const {
+    profile,
+    responsibleStudent,
+    coordinator,
+    weeklyProgress,
+    app,
+  } = data;
 
   return (
     <>
@@ -277,32 +313,38 @@ export default function ProfileScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Avatar name={profile.name} size={88} />
-          <Text style={styles.userName}>{profile.name}</Text>
-          <Text style={styles.appName}>{app.name}</Text>
+          <Avatar name={profile?.name} size={88} />
+          <Text style={styles.userName}>{profile?.name}</Text>
+          <Text style={styles.appName}>{app?.name ?? 'Unifae Care'}</Text>
         </View>
 
         {/* Cards */}
         <View style={styles.section}>
-          <PersonCard
-            label="FISIOTERAPEUTA RESPONSÁVEL"
-            name={responsibleStudent.name}
-            subtitle={responsibleStudent.email}
-          />
-          <PersonCard
-            label="COORDENADOR RESPONSÁVEL"
-            name={coordinator.name}
-            subtitle={coordinator.email}
-          />
-          <ProgressCard percent={weeklyProgress.percentCompleted} />
+          {responsibleStudent ? (
+            <PersonCard
+              label="FISIOTERAPEUTA RESPONSÁVEL"
+              name={responsibleStudent.name}
+              subtitle={responsibleStudent.email}
+            />
+          ) : null}
+          {coordinator ? (
+            <PersonCard
+              label="COORDENADOR RESPONSÁVEL"
+              name={coordinator.name}
+              subtitle={coordinator.email}
+            />
+          ) : null}
+          {weeklyProgress != null ? (
+            <ProgressCard percent={weeklyProgress.percentCompleted ?? weeklyProgress} />
+          ) : null}
         </View>
 
         {/* Configurações */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CONFIGURAÇÕES E SUPORTE</Text>
-          <SettingsItem label="Lembretes"          icon="🔔" onPress={() => handleNavPress('Lembretes')} />
-          <SettingsItem label="Notificações"        icon="🔕" onPress={() => handleNavPress('Notificações')} />
-          <SettingsItem label="Privacidade e Dados" icon="🔒" onPress={() => handleNavPress('Privacidade e Dados')} />
+          <SettingsItem label="Lembretes"           icon="🔔" onPress={() => handleNavPress('Lembretes')} />
+          <SettingsItem label="Notificações"         icon="🔕" onPress={() => handleNavPress('Notificações')} />
+          <SettingsItem label="Privacidade e Dados"  icon="🔒" onPress={() => handleNavPress('Privacidade e Dados')} />
         </View>
 
         {/* Sair */}
@@ -319,9 +361,15 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   centered: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background, paddingHorizontal: 24,
   },
   loadingText: { marginTop: 12, fontSize: 14, color: COLORS.textSecondary },
+  erroTexto: { fontSize: 15, color: COLORS.danger, textAlign: 'center', marginBottom: 16 },
+  retryButton: {
+    backgroundColor: COLORS.primary, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 28,
+  },
+  retryTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
   scroll: { flex: 1, backgroundColor: COLORS.background },
   content: {
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 16,

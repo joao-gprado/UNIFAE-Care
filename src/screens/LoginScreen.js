@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { validarLogin } from '../data/usuarios';
+
+import { ROUTES } from '../services/api';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -15,14 +16,25 @@ export default function LoginScreen({ navigation }) {
       return;
     }
     setCarregando(true);
-    await new Promise(r => setTimeout(r, 700));
-    const usuario = validarLogin(email.trim(), senha.trim());
-    setCarregando(false);
-    if (usuario) {
-      await AsyncStorage.setItem('@usuario', JSON.stringify(usuario));
-      navigation.replace('MainTabs');
-    } else {
-      Alert.alert('Erro', 'E-mail ou senha incorretos.');
+    try {
+      const response = await fetch(ROUTES.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password: senha.trim(), accessMode: 'APP', appId: 1 }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        await AsyncStorage.setItem('@token', json.access_token);
+        await AsyncStorage.setItem('@usuario', JSON.stringify(json.user ?? json));
+        navigation.replace('MainTabs');
+      } else {
+        const mensagem = json.message || json.error || 'E-mail ou senha incorretos.';
+        Alert.alert('Erro', mensagem);
+      }
+    } catch (error) {
+      Alert.alert('Erro de conexão', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+    } finally {
+      setCarregando(false);
     }
   }
 
@@ -142,7 +154,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 50
   },
-  inputSenha: { 
+  inputSenha: {
     flex: 1,
     fontSize: 15,
     color: '#1a1a1a'

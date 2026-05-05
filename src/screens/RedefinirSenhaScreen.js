@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 
+const BASE_URL = 'http://185.217.125.219:3000/api/v1';
+
 export default function RedefinirSenhaScreen({ navigation, route }) {
-  const { email } = route.params;
+  // Recebe e-mail e código validado na tela anterior
+  const { email, code } = route.params;
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmar, setConfirmar] = useState('');
   const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false);
@@ -21,11 +24,28 @@ export default function RedefinirSenhaScreen({ navigation, route }) {
       return;
     }
     setCarregando(true);
-    await new Promise(r => setTimeout(r, 700));
-    setCarregando(false);
-    Alert.alert('Senha atualizada!', 'Sua senha foi redefinida com sucesso.', [
-      { text: 'Ir para o login', onPress: () => navigation.navigate('Login') }
-    ]);
+    try {
+      const response = await fetch(`${BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword: novaSenha }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        Alert.alert(
+          'Senha atualizada!',
+          'Sua senha foi redefinida com sucesso.',
+          [{ text: 'Ir para o login', onPress: () => navigation.navigate('Login') }]
+        );
+      } else {
+        const mensagem = json.message || json.error || 'Não foi possível redefinir a senha. Tente novamente.';
+        setErro(mensagem);
+      }
+    } catch (error) {
+      setErro('Erro de conexão. Verifique sua internet e tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
   }
 
   return (
@@ -98,120 +118,36 @@ export default function RedefinirSenhaScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
-  voltar: {
-    marginBottom: 20,
-  },
-  voltarTexto: {
-    color: '#2a7a4b',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  titulo: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitulo: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  emailDestaque: {
-    color: '#2a7a4b',
-    fontWeight: '600',
-  },
+  flex: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 },
+  voltar: { marginBottom: 20 },
+  voltarTexto: { color: '#2a7a4b', fontWeight: '600', fontSize: 15 },
+  logo: { width: 100, height: 100, alignSelf: 'center', marginBottom: 20 },
+  titulo: { fontSize: 24, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', marginBottom: 8 },
+  subtitulo: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  emailDestaque: { color: '#2a7a4b', fontWeight: '600' },
   dicaBox: {
-    backgroundColor: '#edf7f0',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2a7a4b',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 20,
+    backgroundColor: '#edf7f0', borderLeftWidth: 4, borderLeftColor: '#2a7a4b',
+    borderRadius: 10, padding: 14, marginBottom: 20,
   },
-  dicaTexto: {
-    fontSize: 13,
-    color: '#444',
-    lineHeight: 18,
-  },
+  dicaTexto: { fontSize: 13, color: '#444', lineHeight: 18 },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 32,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#888',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
+  label: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8, letterSpacing: 0.5 },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#efefef',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    height: 50,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#efefef', borderRadius: 10, paddingHorizontal: 16, height: 50,
   },
-  inputSenha: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1a1a1a',
-  },
-  iconeOlho: {
-    width: 22,
-    height: 22,
-    tintColor: '#888',
-  },
-  erroWrapper: {
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  erroTexto: {
-    color: '#e53e3e',
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  inputSenha: { flex: 1, fontSize: 15, color: '#1a1a1a' },
+  iconeOlho: { width: 22, height: 22, tintColor: '#888' },
+  erroWrapper: { marginTop: 12, marginBottom: 4 },
+  erroTexto: { color: '#e53e3e', fontSize: 13, fontWeight: '500' },
   botao: {
-    backgroundColor: '#2a7a4b',
-    borderRadius: 10,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
+    backgroundColor: '#2a7a4b', borderRadius: 10, height: 52,
+    alignItems: 'center', justifyContent: 'center', marginTop: 20,
   },
-  botaoTexto: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  botaoTexto: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
