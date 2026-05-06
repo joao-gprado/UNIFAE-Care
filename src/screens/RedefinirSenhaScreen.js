@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-
-const BASE_URL = 'http://185.217.125.219:3000/api/v1';
+import {
+  View, Text, TextInput, TouchableOpacity, Image, ScrollView,
+  Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { ROUTES } from '../services/api';
 
 export default function RedefinirSenhaScreen({ navigation, route }) {
-  // Recebe e-mail e código validado na tela anterior
   const { email, code } = route.params;
-  const [novaSenha, setNovaSenha] = useState('');
-  const [confirmar, setConfirmar] = useState('');
+  const [novaSenha, setNovaSenha]               = useState('');
+  const [confirmar, setConfirmar]               = useState('');
   const [novaSenhaVisivel, setNovaSenhaVisivel] = useState(false);
   const [confirmarVisivel, setConfirmarVisivel] = useState(false);
-  const [erro, setErro] = useState('');
-  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro]                         = useState('');
+  const [carregando, setCarregando]             = useState(false);
 
   async function atualizar() {
     setErro('');
@@ -25,20 +26,20 @@ export default function RedefinirSenhaScreen({ navigation, route }) {
     }
     setCarregando(true);
     try {
-      const response = await fetch(`${BASE_URL}/auth/reset-password`, {
+      const response = await fetch(ROUTES.resetPassword, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code, newPassword: novaSenha }),
+        body: JSON.stringify({ email, code, password: novaSenha, confirmPassword: confirmar }),
       });
       const json = await response.json();
       if (response.ok) {
         Alert.alert(
           'Senha atualizada!',
-          'Sua senha foi redefinida com sucesso.',
+          json.message || 'Sua senha foi redefinida com sucesso.',
           [{ text: 'Ir para o login', onPress: () => navigation.navigate('Login') }]
         );
       } else {
-        const mensagem = json.message || json.error || 'Não foi possível redefinir a senha. Tente novamente.';
+        const mensagem = json.message || json.error || 'Não foi possível redefinir a senha. Verifique o código e tente novamente.';
         setErro(mensagem);
       }
     } catch (error) {
@@ -59,7 +60,10 @@ export default function RedefinirSenhaScreen({ navigation, route }) {
         <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
         <Text style={styles.titulo}>Nova Senha</Text>
-        <Text style={styles.subtitulo}>Crie uma senha segura para a conta{'\n'}<Text style={styles.emailDestaque}>{email}</Text></Text>
+        <Text style={styles.subtitulo}>
+          Crie uma senha segura para a conta{'\n'}
+          <Text style={styles.emailDestaque}>{email}</Text>
+        </Text>
 
         <View style={styles.dicaBox}>
           <Text style={styles.dicaTexto}>🛡 Use ao menos 8 caracteres, incluindo letras maiúsculas, números e um símbolo.</Text>
@@ -102,16 +106,13 @@ export default function RedefinirSenhaScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          {erro ? (
-            <View style={styles.erroWrapper}>
-              <Text style={styles.erroTexto}>⚠ {erro}</Text>
-            </View>
-          ) : null}
+          {erro ? <Text style={styles.erroTexto}>⚠ {erro}</Text> : null}
 
           <TouchableOpacity style={styles.botao} onPress={atualizar} disabled={carregando} activeOpacity={0.85}>
             {carregando ? <ActivityIndicator color="#fff" /> : <Text style={styles.botaoTexto}>Atualizar senha</Text>}
           </TouchableOpacity>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -143,8 +144,7 @@ const styles = StyleSheet.create({
   },
   inputSenha: { flex: 1, fontSize: 15, color: '#1a1a1a' },
   iconeOlho: { width: 22, height: 22, tintColor: '#888' },
-  erroWrapper: { marginTop: 12, marginBottom: 4 },
-  erroTexto: { color: '#e53e3e', fontSize: 13, fontWeight: '500' },
+  erroTexto: { color: '#e53e3e', fontSize: 13, fontWeight: '500', marginTop: 12, marginBottom: 4 },
   botao: {
     backgroundColor: '#2a7a4b', borderRadius: 10, height: 52,
     alignItems: 'center', justifyContent: 'center', marginTop: 20,

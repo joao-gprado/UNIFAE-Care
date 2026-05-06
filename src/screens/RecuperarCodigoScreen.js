@@ -1,41 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-
-const BASE_URL = 'http://185.217.125.219:3000/api/v1';
+import {
+  View, Text, TextInput, TouchableOpacity, Image, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform,
+} from 'react-native';
 
 export default function RecuperarCodigoScreen({ navigation, route }) {
-  // Recebe apenas o e-mail — codigoMock foi removido
   const { email } = route.params;
   const [codigo, setCodigo] = useState('');
-  const [erro, setErro] = useState('');
-  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro]     = useState('');
 
-  async function validar() {
+  function avancar() {
     setErro('');
-    if (codigo.length < 8) {
-      setErro('Informe os 8 dígitos do código.');
+    if (codigo.trim().length !== 8) {
+      setErro('Informe os 8 caracteres do código.');
       return;
     }
-    setCarregando(true);
-    try {
-      const response = await fetch(`${BASE_URL}/auth/verify-reset-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: codigo }),
-      });
-      const json = await response.json();
-      if (response.ok) {
-        // Passa e-mail e código para a tela de redefinição (a API pode exigir o código novamente)
-        navigation.navigate('RedefinirSenha', { email, code: codigo });
-      } else {
-        const mensagem = json.message || json.error || 'Código inválido ou expirado.';
-        setErro(mensagem);
-      }
-    } catch (error) {
-      setErro('Erro de conexão. Verifique sua internet e tente novamente.');
-    } finally {
-      setCarregando(false);
-    }
+    navigation.navigate('RedefinirSenha', { email, code: codigo.trim().toUpperCase() });
   }
 
   return (
@@ -49,27 +29,26 @@ export default function RecuperarCodigoScreen({ navigation, route }) {
         <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
         <Text style={styles.titulo}>Código de Verificação</Text>
-        <Text style={styles.subtitulo}>Enviamos um código de 8 dígitos para{'\n'}<Text style={styles.emailDestaque}>{email}</Text></Text>
+        <Text style={styles.subtitulo}>
+          Enviamos um código de 8 caracteres para{'\n'}
+          <Text style={styles.emailDestaque}>{email}</Text>
+        </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Código de verificação</Text>
+          <Text style={styles.label}>Código recebido por e-mail</Text>
           <TextInput
             style={[styles.input, erro ? styles.inputErro : null]}
-            placeholder="00000000"
+            placeholder="XXXXXXXX"
             placeholderTextColor="#aaa"
             value={codigo}
-            onChangeText={t => { setCodigo(t.replace(/\D/g, '').substring(0, 8)); setErro(''); }}
-            keyboardType="numeric"
+            onChangeText={t => { setCodigo(t.toUpperCase()); setErro(''); }}
+            autoCapitalize="characters"
             maxLength={8}
           />
-          {erro ? (
-            <View style={styles.erroWrapper}>
-              <Text style={styles.erroTexto}>⚠ {erro}</Text>
-            </View>
-          ) : null}
+          {erro ? <Text style={styles.erroTexto}>⚠ {erro}</Text> : null}
 
-          <TouchableOpacity style={styles.botao} onPress={validar} disabled={carregando} activeOpacity={0.85}>
-            {carregando ? <ActivityIndicator color="#fff" /> : <Text style={styles.botaoTexto}>Validar código</Text>}
+          <TouchableOpacity style={styles.botao} onPress={avancar} activeOpacity={0.85}>
+            <Text style={styles.botaoTexto}>Continuar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('RecuperarEmail')} style={styles.linkWrapper}>
@@ -81,6 +60,7 @@ export default function RecuperarCodigoScreen({ navigation, route }) {
           <Text style={styles.infoTitulo}>⚠ Informação importante</Text>
           <Text style={styles.infoTexto}>O código expira em 15 minutos. Verifique sua caixa de spam caso não receba.</Text>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -104,11 +84,10 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#efefef', borderRadius: 10, paddingHorizontal: 16,
     height: 50, fontSize: 20, color: '#1a1a1a', marginBottom: 8,
-    letterSpacing: 4, textAlign: 'center',
+    letterSpacing: 6, textAlign: 'center', fontWeight: '700',
   },
   inputErro: { borderWidth: 1.5, borderColor: '#e53e3e' },
-  erroWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  erroTexto: { color: '#e53e3e', fontSize: 13, fontWeight: '500' },
+  erroTexto: { color: '#e53e3e', fontSize: 13, fontWeight: '500', marginBottom: 10 },
   botao: {
     backgroundColor: '#2a7a4b', borderRadius: 10, height: 52,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16, marginTop: 8,
