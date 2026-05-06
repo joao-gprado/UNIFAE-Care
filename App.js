@@ -5,6 +5,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RecuperarEmailScreen from './src/screens/RecuperarEmailScreen';
 import RecuperarCodigoScreen from './src/screens/RecuperarCodigoScreen';
 import RedefinirSenhaScreen from './src/screens/RedefinirSenhaScreen';
+import AceitarTermoScreen from './src/screens/AceitarTermoScreen';
 import MainTabs from './src/navigation/MainTabs';
 
 const Stack = createStackNavigator();
@@ -21,6 +22,7 @@ export default function App() {
         <Stack.Screen name="RecuperarEmail" component={RecuperarEmailScreen} />
         <Stack.Screen name="RecuperarCodigo" component={RecuperarCodigoScreen} />
         <Stack.Screen name="RedefinirSenha" component={RedefinirSenhaScreen} />
+        <Stack.Screen name="AceitarTermo" component={AceitarTermoScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

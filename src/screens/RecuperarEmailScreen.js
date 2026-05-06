@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-
-const BASE_URL = 'http://185.217.125.219:3000/api/v1';
+import {
+  View, Text, TextInput, TouchableOpacity, Image, ScrollView,
+  Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { ROUTES } from '../services/api';
 
 export default function RecuperarEmailScreen({ navigation }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [carregando, setCarregando] = useState(false);
 
   async function enviarCodigo() {
@@ -14,14 +16,13 @@ export default function RecuperarEmailScreen({ navigation }) {
     }
     setCarregando(true);
     try {
-      const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+      const response = await fetch(ROUTES.forgotPassword, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
       const json = await response.json();
       if (response.ok) {
-        // Navega passando apenas o e-mail; o código é validado pela API
         navigation.navigate('RecuperarCodigo', { email: email.trim() });
       } else {
         const mensagem = json.message || json.error || 'Não foi possível enviar o código. Tente novamente.';
@@ -45,7 +46,7 @@ export default function RecuperarEmailScreen({ navigation }) {
         <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
         <Text style={styles.titulo}>Recuperar Senha</Text>
-        <Text style={styles.subtitulo}>Insira seu e-mail para receber um código de 8 dígitos.</Text>
+        <Text style={styles.subtitulo}>Insira seu e-mail para receber um código de 8 caracteres.</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>E-mail cadastrado</Text>
@@ -72,6 +73,7 @@ export default function RecuperarEmailScreen({ navigation }) {
           <Text style={styles.infoTitulo}>⚠ Informação importante</Text>
           <Text style={styles.infoTexto}>O código expira em 15 minutos. Verifique sua caixa de spam caso não receba.</Text>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
