@@ -250,7 +250,7 @@ function normalizarExercicios(raw) {
 
 // ─── Tela principal ────────────────────────────────────────────────────────────
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const [nomeUsuario, setNomeUsuario]         = useState('');
   const [progressoSemanal, setProgressoSemanal] = useState(0);
   const [planoDoDia, setPlanoDoDia]           = useState([]);
@@ -350,6 +350,13 @@ export default function HomeScreen() {
         ) : null}
 
         <HeaderSection nome={nomeUsuario || 'Usuário'} />
+        <TouchableOpacity
+          style={styles.exerciseButton}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('ExerciseDetail')}
+        >
+          <Text style={styles.exerciseButtonText}>Ver exercício da semana</Text>
+        </TouchableOpacity>
         <PlanCard exercicios={planoDoDia} />
         <ProgressCard percent={progressoSemanal} />
       </ScrollView>
@@ -378,4 +385,23 @@ const styles = StyleSheet.create({
   },
   erroTexto: { fontSize: 13, color: '#E53E3E', marginBottom: 6 },
   erroLink: { fontSize: 13, color: '#2A7A3B', fontWeight: '700' },
+  exerciseButton: {
+    backgroundColor: COLORS.primary,
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.xl,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  exerciseButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
