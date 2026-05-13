@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Pressable,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { ROUTES, buildHeaders } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../theme';
 
 const STEPS = [
@@ -86,7 +90,62 @@ function TipCard() {
   );
 }
 
-export default function ExerciseDetailScreen({ navigation }) {
+export default function ExerciseDetailScreen({ navigation, route }) {
+  const [submitting, setSubmitting] = useState(false);
+
+  // Extração segura dos parâmetros com fallbacks
+  const prescriptionItemId = route?.params?.prescriptionItemId ?? route?.params?.id ?? null;
+  const titulo = route?.params?.titulo ?? 'Rotação Externa de Ombro';
+  const descricao = route?.params?.descricao ?? 'Descrição detalhada do exercício.';
+  const tempoMedio = route?.params?.tempoMedio ?? 15;
+
+  // Garantir que prescriptionItemId seja numérico (string numérica ou número)
+  const prescriptionItemIdNumerico = prescriptionItemId ? String(prescriptionItemId).trim() : null;
+
+  async function concluirAtividade() {
+    if (!prescriptionItemId) {
+      Alert.alert('Erro', 'Não foi possível identificar o exercício. Volte e tente novamente.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const token = await AsyncStorage.getItem('@token');
+
+      if (!token) {
+        throw new Error('Token não encontrado. Faça login novamente.');
+      }
+
+      const url = ROUTES.completePlanExercise(prescriptionItemId);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(token),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        const message = json.message || json.error || 'Não foi possível concluir o exercício.';
+        Alert.alert('Erro', message);
+        return;
+      }
+
+      const executionId = json.executionId ?? json.execution_id ?? json.data?.executionId ?? json.data?.execution_id;
+
+      if (!executionId) {
+        Alert.alert('Erro', 'A finalização do exercício não retornou um ID de execução válido.');
+        return;
+      }
+
+      navigation.navigate('Feedback', { executionId });
+    } catch (error) {
+      Alert.alert('Erro de conexão', 'Não foi possível concluir o exercício. Verifique a conexão e tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -105,7 +164,8 @@ export default function ExerciseDetailScreen({ navigation }) {
           <PillTag label="MOBILIDADE" />
         </View>
 
-        <Text style={styles.mainTitle}>Rotação Externa de Ombro</Text>
+        <Text style={styles.mainTitle}>{titulo}</Text>
+        <Text style={styles.exerciseSubtitle}>{descricao}</Text>
 
         <View style={styles.videoCard}>
           <View style={styles.videoPlaceholder}>
@@ -140,8 +200,17 @@ export default function ExerciseDetailScreen({ navigation }) {
         <TipCard />
       </ScrollView>
 
-      <TouchableOpacity style={styles.footerButton} activeOpacity={0.8} onPress={() => {}}>
-        <Text style={styles.footerButtonText}>Concluir Atividade</Text>
+      <TouchableOpacity
+        style={[styles.footerButton, submitting && styles.footerButtonDisabled]}
+        activeOpacity={0.8}
+        onPress={concluirAtividade}
+        disabled={submitting}
+      >
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.footerButtonText}>Concluir Atividade</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -220,7 +289,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textDark,
     paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  exerciseSubtitle: {
+    fontSize: 14,
+    color: COLORS.textMedium,
+    paddingHorizontal: SPACING.md,
     marginBottom: SPACING.lg,
+    lineHeight: 20,
   },
   videoCard: {
     marginHorizontal: SPACING.md,
@@ -385,6 +461,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  footerButtonDisabled: {
+    opacity: 0.7,
   },
   footerButtonText: {
     color: COLORS.white,

@@ -111,13 +111,13 @@ const headerStyles = StyleSheet.create({
 
 // ─── Subcomponente: PlanCard ───────────────────────────────────────────────────
 
-function PlanCard({ exercicios }) {
+function PlanCard({ exercicios, onStart }) {
   const pendentes = exercicios.filter(e => !e.concluido);
   const proximo = pendentes[0] ?? null;
 
   const handleIniciar = () => {
     if (!proximo) return;
-    Alert.alert('Iniciar exercício', `Iniciando: ${proximo.titulo}`);
+    onStart?.(proximo);
   };
 
   return (
@@ -234,17 +234,14 @@ const progressStyles = StyleSheet.create({
   message: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, lineHeight: 20 },
 });
 
-// ─── Normalização de dados da API ──────────────────────────────────────────────
-// Adapta diferentes estruturas de resposta para o formato interno da tela.
-
 function normalizarExercicios(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map((item, i) => ({
-    id:        String(item.id ?? i),
-    titulo:    item.titulo   ?? item.title    ?? item.name        ?? 'Exercício',
-    descricao: item.descricao ?? item.description ?? item.subtitle ?? '',
-    tempoMedio: item.tempoMedio ?? item.duration ?? item.durationMinutes ?? 0,
-    concluido: item.concluido  ?? item.completed  ?? item.done    ?? false,
+    id:        String(item.prescriptionItemId ?? item.id ?? i),
+    titulo:    item.title ?? item.titulo ?? item.name ?? 'Exercício',
+    descricao: item.description ?? item.descricao ?? item.subtitle ?? '',
+    tempoMedio: item.duration ?? item.tempoMedio ?? item.durationMinutes ?? 0,
+    concluido: item.completed ?? item.concluido ?? item.done ?? false,
   }));
 }
 
@@ -267,40 +264,48 @@ export default function HomeScreen({ navigation }) {
       const token = await AsyncStorage.getItem('@token');
       const headers = buildHeaders(token);
 
-      // Rota unificada que retorna perfil, progresso semanal e dados do app
-      const response = await fetch(ROUTES.homeProfile, { headers });
-
-      if (response.ok) {
-        const json = await response.json();
-
-        // Nome do usuário vem em json.profile.name
-        const nome = json.profile?.name ?? json.profile?.firstName ?? '';
+      // Buscar perfil e progresso semanal
+      const profileResponse = await fetch(ROUTES.homeProfile, { headers });
+      let nome = '';
+      let pct = 0;
+      if (profileResponse.ok) {
+        const json = await profileResponse.json();
+        nome = json.profile?.name ?? json.profile?.firstName ?? '';
+        pct = json.weeklyProgress?.percentCompleted ?? json.weeklyProgress?.percent ?? 0;
         setNomeUsuario(nome);
-
-        // Progresso semanal vem em json.weeklyProgress.percentCompleted
-        const pct = json.weeklyProgress?.percentCompleted
-          ?? json.weeklyProgress?.percent
-          ?? 0;
         setProgressoSemanal(pct);
-
-        // Exercícios do dia — se a API retornar no futuro, normaliza aqui
-        const exerciciosRaw = json.exercises ?? json.todayExercises ?? json.data ?? [];
-        setPlanoDoDia(normalizarExercicios(exerciciosRaw));
-
       } else {
-        // Fallback: usa dado salvo no login para o nome
+        // Fallback para nome
         const usuarioSalvo = await AsyncStorage.getItem('@usuario');
         if (usuarioSalvo) {
           const u = JSON.parse(usuarioSalvo);
           setNomeUsuario(u.nome ?? u.name ?? u.firstName ?? '');
         }
-        const json = await response.json().catch(() => ({}));
-        const mensagem = json.message || json.error || 'Erro ao carregar dados da home.';
-        setErro(mensagem);
+      }
+
+      // Buscar snapshot da home (painToday, plan, nextExercise, motivation)
+      const homeResponse = await fetch(ROUTES.home, { headers });
+      if (homeResponse.ok) {
+        const homeJson = await homeResponse.json();
+        // Usar progresso do home se disponível, senão manter do profile
+        if (homeJson.plan?.percentCompleted != null) {
+          setProgressoSemanal(homeJson.plan.percentCompleted);
+        }
+        // nextExercise pode ser usado para destacar o próximo exercício
+        // motivation pode ser exibida
+      }
+
+      // Buscar lista de exercícios do plano
+      const planResponse = await fetch(ROUTES.planExercises, { headers });
+      if (planResponse.ok) {
+        const planJson = await planResponse.json();
+        const exerciciosRaw = planJson.items ?? planJson.exercises ?? planJson.data ?? [];
+        setPlanoDoDia(normalizarExercicios(exerciciosRaw));
+      } else {
+        setPlanoDoDia([]);
       }
 
     } catch (error) {
-      // Fallback de nome em caso de falha de rede
       try {
         const usuarioSalvo = await AsyncStorage.getItem('@usuario');
         if (usuarioSalvo) {
@@ -350,14 +355,15 @@ export default function HomeScreen({ navigation }) {
         ) : null}
 
         <HeaderSection nome={nomeUsuario || 'Usuário'} />
-        <TouchableOpacity
-          style={styles.exerciseButton}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('ExerciseDetail')}
-        >
-          <Text style={styles.exerciseButtonText}>Ver exercício da semana</Text>
-        </TouchableOpacity>
-        <PlanCard exercicios={planoDoDia} />
+        <PlanCard
+          exercicios={planoDoDia}
+          onStart={item => navigation.navigate('ExerciseDetail', {
+            prescriptionItemId: item.id,
+            titulo: item.titulo,
+            descricao: item.descricao,
+            tempoMedio: item.tempoMedio,
+          })}
+        />
         <ProgressCard percent={progressoSemanal} />
       </ScrollView>
     </View>
@@ -385,23 +391,4 @@ const styles = StyleSheet.create({
   },
   erroTexto: { fontSize: 13, color: '#E53E3E', marginBottom: 6 },
   erroLink: { fontSize: 13, color: '#2A7A3B', fontWeight: '700' },
-  exerciseButton: {
-    backgroundColor: COLORS.primary,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    borderRadius: RADIUS.xl,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  exerciseButtonText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
 });
