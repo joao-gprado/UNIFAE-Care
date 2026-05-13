@@ -7,6 +7,7 @@ import RecuperarCodigoScreen from './src/screens/RecuperarCodigoScreen';
 import RedefinirSenhaScreen from './src/screens/RedefinirSenhaScreen';
 import AceitarTermoScreen from './src/screens/AceitarTermoScreen';
 import ExerciseDetailScreen from './src/screens/ExerciseDetailScreen';
+import FeedbackScreen from './src/screens/FeedbackScreen';
 import MainTabs from './src/navigation/MainTabs';
 
 const Stack = createStackNavigator();
@@ -25,6 +26,7 @@ export default function App() {
         <Stack.Screen name="RedefinirSenha" component={RedefinirSenhaScreen} />
         <Stack.Screen name="AceitarTermo" component={AceitarTermoScreen} />
         <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
+        <Stack.Screen name="Feedback" component={FeedbackScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

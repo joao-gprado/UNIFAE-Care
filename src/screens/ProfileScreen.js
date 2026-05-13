@@ -10,8 +10,10 @@ import {
   Alert,
   Platform,
   StatusBar,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 
 import { ROUTES, buildHeaders } from '../services/api';
 
@@ -33,13 +35,18 @@ const APP_VERSION = 'V2.4.0';
 
 // ─── Avatar com iniciais ───────────────────────────────────────────────────────
 
-function Avatar({ name, size = 88 }) {
+function Avatar({ name, uri, size = 88 }) {
   const initials = name
     ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
     : '?';
+
   return (
-    <View style={[avatarStyles.wrapper, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[avatarStyles.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
+    <View style={[avatarStyles.wrapper, { width: size, height: size, borderRadius: size / 2 }]}> 
+      {uri ? (
+        <Image source={{ uri }} style={[avatarStyles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+      ) : (
+        <Text style={[avatarStyles.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
+      )}
     </View>
   );
 }
@@ -51,11 +58,15 @@ const avatarStyles = StyleSheet.create({
     borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   initials: {
     color: COLORS.primary,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  image: {
+    resizeMode: 'cover',
   },
 });
 
@@ -225,10 +236,21 @@ export default function ProfileScreen({ navigation }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro]       = useState(null);
+  const [photoUri, setPhotoUri] = useState(null);
 
   useEffect(() => {
     carregarPerfil();
+    if (Platform.OS !== 'web') {
+      requestImagePickerPermission();
+    }
   }, []);
+
+  async function requestImagePickerPermission() {
+    const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    }
+  }
 
   async function carregarPerfil() {
     setLoading(true);
@@ -269,6 +291,100 @@ export default function ProfileScreen({ navigation }) {
         },
       ],
     );
+  };
+
+  function getFileInfo(uri) {
+    const name = uri.split('/').pop() || 'profile.jpg';
+    const match = name.match(/\.([0-9a-z]+)(?:[?#]|$)/i);
+    const ext = match ? match[1].toLowerCase() : 'jpg';
+    const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+    return { fileName: name, type };
+  }
+
+  function pickWebImage() {
+    return new Promise((resolve) => {
+      if (typeof document === 'undefined') {
+        resolve(null);
+        return;
+      }
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      input.onchange = () => {
+        const file = input.files?.[0] ?? null;
+        resolve(file);
+        document.body.removeChild(input);
+      };
+
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+
+  async function uploadPhotoFile(fileData) {
+    const token = await AsyncStorage.getItem('@token');
+    if (!token) {
+      Alert.alert('Erro', 'Token não encontrado. Faça login novamente.');
+      return null;
+    }
+
+    const formData = new FormData();
+    if (fileData.uri) {
+      formData.append('file', fileData);
+    } else {
+      formData.append('file', fileData, fileData.name);
+    }
+
+    const response = await fetch(ROUTES.profilePhotoUpload, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    return response;
+  }
+
+  const handleUploadPhoto = async () => {
+    try {
+      let selectedFile = null;
+
+      if (Platform.OS === 'web') {
+        selectedFile = await pickWebImage();
+        if (!selectedFile) return;
+      } else {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaType.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+
+        if (result.canceled) return;
+
+        const asset = result.assets[0];
+        const { uri, fileName, type } = getFileInfo(asset.uri);
+        selectedFile = { uri, name: fileName, type };
+      }
+
+      const response = await uploadPhotoFile(selectedFile);
+      if (!response) return;
+
+      const json = await response.json();
+      if (response.ok) {
+        setPhotoUri(Platform.OS === 'web' ? URL.createObjectURL(selectedFile) : selectedFile.uri);
+        Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+        carregarPerfil();
+      } else {
+        const mensagem = json.message || json.error || 'Erro ao fazer upload da foto.';
+        Alert.alert('Erro', mensagem);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto.');
+    }
   };
 
   const handleNavPress = (tela) => {
@@ -313,7 +429,13 @@ export default function ProfileScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Avatar name={profile?.name} size={88} />
+          <TouchableOpacity onPress={handleUploadPhoto} activeOpacity={0.8}>
+            <Avatar
+              name={profile?.name}
+              uri={photoUri || profile?.photoUrl || profile?.imageUrl || profile?.avatarUrl || profile?.photo}
+              size={88}
+            />
+          </TouchableOpacity>
           <Text style={styles.userName}>{profile?.name}</Text>
           <Text style={styles.appName}>{app?.name ?? 'Unifae Care'}</Text>
         </View>
