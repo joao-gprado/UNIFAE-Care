@@ -92,13 +92,13 @@ export default function FeedbackScreen({ navigation, route }) {
       const json = await response.json();
       if (response.ok) {
         Alert.alert('Feedback enviado', 'Obrigado pelo seu retorno! Seu feedback foi registrado com sucesso.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { text: 'OK', onPress: () => navigation.navigate('MainTabs') },
         ]);
       } else if (response.status === 409) {
         Alert.alert(
           'Feedback já registrado',
           'Este feedback já foi enviado para esta execução. Você não pode enviar duas vezes.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
+          [{ text: 'OK', onPress: () => navigation.navigate('MainTabs') }]
         );
       } else {
         const message = json.message || json.error || 'Não foi possível enviar o feedback. Tente novamente.';
@@ -255,6 +255,7 @@ const styles = StyleSheet.create({
   },
   optionTextBlock: {
     flex: 1,
+    minWidth: 0,
   },
   optionTitle: {
     fontSize: 16,
@@ -266,6 +267,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMedium,
     lineHeight: 18,
+    flexShrink: 1,
   },
   badge: {
     minWidth: 40,
@@ -291,6 +293,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 140,
+    maxHeight: 200,
     borderRadius: RADIUS.lg,
     backgroundColor: COLORS.inputBg,
     borderWidth: 1,
@@ -298,6 +301,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     color: COLORS.textDark,
     fontSize: 14,
+    scrollEnabled: true,
   },
   button: {
     backgroundColor: COLORS.primary,
@@ -321,6 +325,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: SPACING.lg,
     lineHeight: 20,
+    flexShrink: 1,
   },
   footer: {
     alignItems: 'center',

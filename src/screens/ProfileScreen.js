@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
 import { ROUTES, buildHeaders } from '../services/api';
+import { SPACING } from '../theme';
 
 const COLORS = {
   primary:       '#2A7A3B',
@@ -35,15 +36,72 @@ const APP_VERSION = 'V2.4.0';
 
 // ─── Avatar com iniciais ───────────────────────────────────────────────────────
 
-function Avatar({ name, uri, size = 88 }) {
+function Avatar({ name, uri, size = 88, userId, token }) {
+  const [base64Img, setBase64Img] = useState(null);
+  
   const initials = name
     ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
     : '?';
 
+  const BASE_URL = 'http://185.217.125.219:3000';
+
+  useEffect(() => {
+    let isMounted = true;
+    setBase64Img(null); // Limpa a imagem anterior se a URI mudar
+
+    async function fetchAuthImage() {
+      if (!uri) return;
+
+      // 1. Imagem local ou URL pública (não precisa de token, mostra direto)
+      if (typeof uri === 'string' && (uri.startsWith('http') || uri.startsWith('data:') || uri.startsWith('file://') || uri.startsWith('blob:'))) {
+        if (isMounted) setBase64Img({ uri });
+        return;
+      }
+
+      // 2. Imagem autenticada do servidor (Bypass do erro do React Native)
+      if (token) {
+        try {
+          const urlCompleta = BASE_URL + uri + '?t=' + Date.now(); // Quebra o cache agressivo
+          
+          // Baixamos a imagem "na mão" usando o fetch, que não perde o Token
+          const response = await fetch(urlCompleta, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            // Convertendo a imagem binária para texto Base64
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (isMounted) {
+                // reader.result contém a imagem em formato data:image/jpeg;base64...
+                setBase64Img({ uri: reader.result });
+              }
+            };
+            reader.readAsDataURL(blob);
+          } else {
+            console.log("Servidor recusou a imagem:", response.status);
+          }
+        } catch (e) {
+          console.log("Erro ao baixar avatar autenticado:", e);
+        }
+      }
+    }
+
+    fetchAuthImage();
+
+    return () => { isMounted = false; };
+  }, [uri, token]);
+
   return (
     <View style={[avatarStyles.wrapper, { width: size, height: size, borderRadius: size / 2 }]}> 
-      {uri ? (
-        <Image source={{ uri }} style={[avatarStyles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+      {base64Img ? (
+        <Image 
+          source={base64Img} 
+          style={[avatarStyles.image, { width: size, height: size, borderRadius: size / 2 }]} 
+          resizeMode="cover" 
+        />
       ) : (
         <Text style={[avatarStyles.initials, { fontSize: size * 0.34 }]}>{initials}</Text>
       )}
@@ -65,9 +123,7 @@ const avatarStyles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
-  image: {
-    resizeMode: 'cover',
-  },
+  image: {},
 });
 
 // ─── Avatar pequeno ────────────────────────────────────────────────────────────
@@ -237,13 +293,24 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [erro, setErro]       = useState(null);
   const [photoUri, setPhotoUri] = useState(null);
+  const [token, setToken]     = useState(null);
 
   useEffect(() => {
     carregarPerfil();
+    obterToken();
     if (Platform.OS !== 'web') {
       requestImagePickerPermission();
     }
   }, []);
+
+  async function obterToken() {
+    try {
+      const t = await AsyncStorage.getItem('@token');
+      setToken(t);
+    } catch (error) {
+      console.log('Erro ao obter token:', error);
+    }
+  }
 
   async function requestImagePickerPermission() {
     const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -263,7 +330,21 @@ export default function ProfileScreen({ navigation }) {
       });
       const json = await response.json();
       if (response.ok) {
+        console.log("Dados do Perfil recebidos:", json.profile);
+        setPhotoUri(null); // Força limpar a versão local temporária após ler com sucesso do servidor
         setData(json);
+
+        // Sincronização de dados do perfil para o AsyncStorage
+        if (json.profile) {
+          const usuarioSalvo = await AsyncStorage.getItem('@usuario');
+          let usuarioAtualizado = json.profile;
+          if (usuarioSalvo) {
+            try {
+              usuarioAtualizado = { ...JSON.parse(usuarioSalvo), ...json.profile };
+            } catch (e) {}
+          }
+          await AsyncStorage.setItem('@usuario', JSON.stringify(usuarioAtualizado));
+        }
       } else {
         const mensagem = json.message || json.error || 'Erro ao carregar perfil.';
         setErro(mensagem);
@@ -292,12 +373,12 @@ export default function ProfileScreen({ navigation }) {
       ],
     );
   };
-
-  function getFileInfo(uri) {
+function getFileInfo(uri) {
     const name = uri.split('/').pop() || 'profile.jpg';
     const match = name.match(/\.([0-9a-z]+)(?:[?#]|$)/i);
     const ext = match ? match[1].toLowerCase() : 'jpg';
-    const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+    // O backend pode ser rígido quanto ao mimeType
+    const type = ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg');
     return { fileName: name, type };
   }
 
@@ -310,7 +391,7 @@ export default function ProfileScreen({ navigation }) {
 
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
+      input.accept = 'image/jpeg, image/png, image/webp';
       input.style.display = 'none';
       input.onchange = () => {
         const file = input.files?.[0] ?? null;
@@ -325,22 +406,29 @@ export default function ProfileScreen({ navigation }) {
 
   async function uploadPhotoFile(fileData) {
     const token = await AsyncStorage.getItem('@token');
-    if (!token) {
-      Alert.alert('Erro', 'Token não encontrado. Faça login novamente.');
-      return null;
-    }
+    if (!token) return null;
 
     const formData = new FormData();
-    if (fileData.uri) {
-      formData.append('file', fileData);
+    
+    // Tratamento crucial: Diferenciar Web de Mobile
+    if (Platform.OS === 'web') {
+      // No web, fileData já é o objeto File nativo do input
+      formData.append('file', fileData, fileData.name || 'upload.jpg');
     } else {
-      formData.append('file', fileData, fileData.name);
+      // No mobile, precisa ser este objeto estrito
+      formData.append('file', {
+        uri: Platform.OS === 'ios' ? fileData.uri.replace('file://', '') : fileData.uri,
+        name: fileData.name,
+        type: fileData.type,
+      });
     }
 
     const response = await fetch(ROUTES.profilePhotoUpload, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        // Não defina Content-Type multipart/form-data aqui, o fetch precisa definir o boundary sozinho
       },
       body: formData,
     });
@@ -351,13 +439,15 @@ export default function ProfileScreen({ navigation }) {
   const handleUploadPhoto = async () => {
     try {
       let selectedFile = null;
+      let localUri = null;
 
       if (Platform.OS === 'web') {
         selectedFile = await pickWebImage();
         if (!selectedFile) return;
+        localUri = URL.createObjectURL(selectedFile);
       } else {
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaType.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [1, 1],
           quality: 0.8,
@@ -366,24 +456,39 @@ export default function ProfileScreen({ navigation }) {
         if (result.canceled) return;
 
         const asset = result.assets[0];
-        const { uri, fileName, type } = getFileInfo(asset.uri);
-        selectedFile = { uri, name: fileName, type };
+        const { fileName, type } = getFileInfo(asset.uri);
+        selectedFile = { uri: asset.uri, name: fileName, type };
+        localUri = asset.uri;
       }
 
+      // Exibir feedback visual de carregamento aqui seria ideal no futuro
       const response = await uploadPhotoFile(selectedFile);
-      if (!response) return;
+      if (!response) {
+         Alert.alert('Erro', 'Sessão expirada. Faça login novamente.');
+         return;
+      }
 
-      const json = await response.json();
+      const responseText = await response.text();
+      let json = {};
+      try {
+        json = JSON.parse(responseText);
+      } catch (e) {
+        // Parse falhou, lidamos com isso extraindo a resposta de texto no fallback do erro
+      }
+
       if (response.ok) {
-        setPhotoUri(Platform.OS === 'web' ? URL.createObjectURL(selectedFile) : selectedFile.uri);
+        // Forçar a UI a mostrar a nova foto localmente imediatamente para dar feedback rápido
+        setPhotoUri(localUri);
         Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+        // Tentar recarregar o perfil do backend (pode levar alguns instantes para refletir dependendo do cache)
         carregarPerfil();
       } else {
-        const mensagem = json.message || json.error || 'Erro ao fazer upload da foto.';
+        const mensagem = json.message || json.error || responseText || `Erro ${response.status}`;
         Alert.alert('Erro', mensagem);
       }
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível fazer upload da foto.');
+      console.error("Erro no fluxo de upload:", error.message || error);
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto. Verifique a conexão.');
     }
   };
 
@@ -434,6 +539,8 @@ export default function ProfileScreen({ navigation }) {
               name={profile?.name}
               uri={photoUri || profile?.photoUrl || profile?.imageUrl || profile?.avatarUrl || profile?.photo}
               size={88}
+              userId={profile?.id ?? profile?.userId ?? profile?.user_id}
+              token={token}
             />
           </TouchableOpacity>
           <Text style={styles.userName}>{profile?.name}</Text>
@@ -496,19 +603,20 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 16,
     paddingBottom: 100,
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING.md,
   },
-  header: { alignItems: 'center', paddingVertical: 24, marginBottom: 8 },
+  header: { alignItems: 'center', paddingVertical: 24, marginBottom: SPACING.lg },
   userName: {
     marginTop: 14, fontSize: 24, fontWeight: '800',
     color: COLORS.textPrimary, letterSpacing: -0.3, textAlign: 'center',
+    flexShrink: 1, marginBottom: 8,
   },
-  appName: { marginTop: 4, fontSize: 13, color: COLORS.primary, fontWeight: '500' },
-  section: { marginBottom: 8 },
+  appName: { marginTop: 4, fontSize: 13, color: COLORS.primary, fontWeight: '500', flexShrink: 1 },
+  section: { marginBottom: SPACING.lg, marginHorizontal: 0 },
   sectionTitle: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1.2,
     color: COLORS.textMeta, textTransform: 'uppercase',
-    marginBottom: 10, marginLeft: 4,
+    marginBottom: SPACING.md, marginLeft: 4,
   },
   logoutButton: {
     backgroundColor: COLORS.dangerLight,

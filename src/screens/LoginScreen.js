@@ -18,8 +18,9 @@ export default function LoginScreen({ navigation }) {
     fetch(ROUTES.apps, { headers: { Accept: 'application/json' } })
       .then(r => r.ok ? r.json() : [])
       .then(lista => {
-        setApps(lista);
-        if (lista.length === 1) setAppSelecionado(lista[0]);
+        const arr = Array.isArray(lista) ? lista : [];
+        setApps(arr);
+        if (arr.length === 1) setAppSelecionado(arr[0]);
       })
       .catch(() => {});
   }, []);

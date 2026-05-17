@@ -1,4 +1,4 @@
-// src/screens/HomeScreen.js
+// src/screens/HomeScreen.js (COM ROBÔ DANÇARINO ARRUMADO)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
 import { COLORS, SPACING, RADIUS } from '../theme';
+import RobotAssistant from '../components/RobotAssistant'; // ← Importar robô dançarino
 
 import { ROUTES, buildHeaders } from '../services/api';
 
@@ -254,6 +255,7 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]                 = useState(true);
   const [refreshing, setRefreshing]           = useState(false);
   const [erro, setErro]                       = useState(null);
+  const [motivationalMessage, setMotivationalMessage] = useState(null);
 
   const carregarDados = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -264,7 +266,6 @@ export default function HomeScreen({ navigation }) {
       const token = await AsyncStorage.getItem('@token');
       const headers = buildHeaders(token);
 
-      // Buscar perfil e progresso semanal
       const profileResponse = await fetch(ROUTES.homeProfile, { headers });
       let nome = '';
       let pct = 0;
@@ -275,7 +276,6 @@ export default function HomeScreen({ navigation }) {
         setNomeUsuario(nome);
         setProgressoSemanal(pct);
       } else {
-        // Fallback para nome
         const usuarioSalvo = await AsyncStorage.getItem('@usuario');
         if (usuarioSalvo) {
           const u = JSON.parse(usuarioSalvo);
@@ -283,19 +283,14 @@ export default function HomeScreen({ navigation }) {
         }
       }
 
-      // Buscar snapshot da home (painToday, plan, nextExercise, motivation)
       const homeResponse = await fetch(ROUTES.home, { headers });
       if (homeResponse.ok) {
         const homeJson = await homeResponse.json();
-        // Usar progresso do home se disponível, senão manter do profile
         if (homeJson.plan?.percentCompleted != null) {
           setProgressoSemanal(homeJson.plan.percentCompleted);
         }
-        // nextExercise pode ser usado para destacar o próximo exercício
-        // motivation pode ser exibida
       }
 
-      // Buscar lista de exercícios do plano
       const planResponse = await fetch(ROUTES.planExercises, { headers });
       if (planResponse.ok) {
         const planJson = await planResponse.json();
@@ -320,7 +315,32 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { carregarDados(); }, [carregarDados]);
+  const carregarMotivacao = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('@token');
+      if (!token) return;
+
+      const response = await fetch(ROUTES.motivation, {
+        method: 'GET',
+        headers: buildHeaders(token),
+      });
+
+      if (!response.ok) {
+        console.log('Falha ao carregar motivação:', response.status);
+        return;
+      }
+
+      const json = await response.json();
+      setMotivationalMessage(json);
+    } catch (error) {
+      console.log('Erro carregarMotivacao:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarDados();
+    carregarMotivacao();
+  }, [carregarDados, carregarMotivacao]);
 
   if (loading) {
     return (
@@ -355,6 +375,32 @@ export default function HomeScreen({ navigation }) {
         ) : null}
 
         <HeaderSection nome={nomeUsuario || 'Usuário'} />
+
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            SEÇÃO DE CITAÇÃO DO DIA COM ROBÔ DANÇARINO 🕺
+            ═══════════════════════════════════════════════════════════════════════════ */}
+        <View style={styles.motivationCard}>
+          <View style={styles.motivationHeader}>
+            <Text style={styles.motivationIcon}>💡</Text>
+            <Text style={styles.motivationTitle}>Citação do dia</Text>
+          </View>
+
+          {/* Layout com Robô Dançarino e Citação */}
+          <View style={styles.motivationContent}>
+            {/* Robô Dançarino - Agora sem ficar amassado! */}
+            <View style={styles.robotContainer}>
+              <RobotAssistant size={110} />
+            </View>
+
+            {/* Texto da Citação */}
+            <View style={styles.quoteContainer}>
+              <Text style={styles.motivationText}>
+                "{motivationalMessage?.message ?? 'Vamos começar o dia com energia!'}"
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <PlanCard
           exercicios={planoDoDia}
           onStart={item => navigation.navigate('ExerciseDetail', {
@@ -391,4 +437,66 @@ const styles = StyleSheet.create({
   },
   erroTexto: { fontSize: 13, color: '#E53E3E', marginBottom: 6 },
   erroLink: { fontSize: 13, color: '#2A7A3B', fontWeight: '700' },
+  
+  // ─── ESTILOS PARA A SEÇÃO DE CITAÇÃO COM ROBÔ DANÇARINO ───
+  motivationCard: {
+    backgroundColor: COLORS.primaryLight ?? '#E7F5EA',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  motivationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  motivationIcon: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  motivationTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a5d38',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Layout com robô e citação lado a lado
+  motivationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between', // Melhor distribuição
+    gap: SPACING.md,
+  },
+
+  // Container do robô dançarino
+  robotContainer: {
+    width: 130,
+    height: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0, // <-- A MÁGICA AQUI: Impede o Flexbox de espremer o robô
+    overflow: 'visible',
+  },
+
+  // Container da citação
+  quoteContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  motivationText: {
+    fontSize: 16,
+    color: '#1a5d38',
+    fontStyle: 'italic',
+    lineHeight: 24,
+    fontWeight: '500',
+  },
 });

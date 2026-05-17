@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 
 export default function RecuperarCodigoScreen({ navigation, route }) {
-  const { email } = route.params;
+  const email = route?.params?.email ?? '';
   const [codigo, setCodigo] = useState('');
   const [erro, setErro]     = useState('');
 

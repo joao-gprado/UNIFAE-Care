@@ -18,6 +18,7 @@ export const ROUTES = {
   exerciseDetail: prescriptionItemId => `${BASE_URL}/app/home/plan/exercises/${prescriptionItemId}`,
   completePlanExercise: prescriptionItemId => `${BASE_URL}/app/home/plan/exercises/${prescriptionItemId}/complete`,
   submitExerciseFeedback: executionId => `${BASE_URL}/app/home/plan/executions/${executionId}/feedback`,
+  // POST /app/home/pain
   pain:           `${BASE_URL}/app/home/pain`,
   motivation:     `${BASE_URL}/app/home/motivation`,
   homeProfile:    `${BASE_URL}/app/home/profile`,
