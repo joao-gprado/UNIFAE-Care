@@ -20,14 +20,14 @@ import { ROUTES, buildHeaders } from '../services/api';
 function normalizarExercicios(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map((item, i) => ({
-    id: String(item.prescriptionItemId ?? item.id ?? i),
-    titulo: item.title ?? item.titulo ?? item.name ?? 'Exercício',
-    descricao: item.description ?? item.descricao ?? item.subtitle ?? '',
+    id:         String(item.prescriptionItemId ?? item.id ?? i),
+    titulo:     item.title ?? item.titulo ?? item.name ?? 'Exercício',
+    descricao:  item.taxonomy?.axis ?? item.taxonomy?.problem ?? item.description ?? item.descricao ?? '',
     tempoMedio: item.duration ?? item.tempoMedio ?? item.durationMinutes ?? 0,
-    concluido: item.completed ?? item.concluido ?? item.done ?? false,
-    series: item.metrics?.series ?? item.series ?? null,
+    concluido:  item.completedToday ?? item.completed ?? item.concluido ?? item.done ?? false,
+    series:     item.metrics?.series ?? item.series ?? null,
     repeticoes: item.metrics?.repetitionsRaw ?? item.repetitions ?? null,
-    categoria: item.category ?? item.muscleGroup ?? null,
+    categoria:  item.taxonomy?.axis ?? item.category ?? item.muscleGroup ?? null,
   }));
 }
 
@@ -372,8 +372,6 @@ export default function ExerciciosScreen({ navigation }) {
     navigation.navigate('ExerciseDetail', {
       prescriptionItemId: item.id,
       titulo: item.titulo,
-      descricao: item.descricao,
-      tempoMedio: item.tempoMedio,
     });
   };
 

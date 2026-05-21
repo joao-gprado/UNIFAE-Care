@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle, Rect, G, Text as SvgText } from 'react-native-svg';
 import { COLORS, SPACING, RADIUS } from '../theme';
 import { ROUTES, buildHeaders } from '../services/api';
+import Skeleton from '../components/Skeleton';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -212,23 +213,14 @@ export default function ProgressoScreen({ navigation }) {
         nome = profileJson.profile?.name ?? '';
       }
 
-      // Carrega exercícios para contar concluídos
-      const planRes = await fetch(ROUTES.planExercises, { headers });
-      if (planRes.ok) {
-        const planJson = await planRes.json();
-        const items = planJson.items ?? planJson.exercises ?? planJson.data ?? [];
-        totalExercicios = items.length;
-        concluidosTotal = items.filter(
-          e => e.completed ?? e.concluido ?? e.done ?? false
-        ).length;
-      }
-
-      // Tenta carregar home para percentual mais atualizado
+      // Carrega dados agregados mais atuais (que já vêm mastigados da API)
       const homeRes = await fetch(ROUTES.home, { headers });
       if (homeRes.ok) {
         const homeJson = await homeRes.json();
-        if (homeJson.plan?.percentCompleted != null) {
-          percentSemanal = homeJson.plan.percentCompleted;
+        if (homeJson.plan) {
+          if (homeJson.plan.percentCompleted != null) percentSemanal = homeJson.plan.percentCompleted;
+          if (homeJson.plan.totalExercises != null) totalExercicios = homeJson.plan.totalExercises;
+          if (homeJson.plan.completedExercises != null) concluidosTotal = homeJson.plan.completedExercises;
         }
       }
 
@@ -263,9 +255,27 @@ export default function ProgressoScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Carregando progresso…</Text>
+      <View style={styles.root}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Skeleton width={180} height={34} borderRadius={6} style={{ marginBottom: 8 }} />
+            <Skeleton width={120} height={18} borderRadius={4} />
+          </View>
+          <View style={[styles.card, { alignItems: 'flex-start' }]}>
+            <Skeleton width={130} height={14} borderRadius={4} style={{ marginBottom: 16 }} />
+            <Skeleton width={160} height={160} borderRadius={80} style={{ alignSelf: 'center' }} />
+          </View>
+          <View style={styles.statsRow}>
+            <Skeleton style={{ flex: 1 }} height={90} borderRadius={RADIUS.lg} />
+            <Skeleton style={{ flex: 1 }} height={90} borderRadius={RADIUS.lg} />
+            <Skeleton style={{ flex: 1 }} height={90} borderRadius={RADIUS.lg} />
+          </View>
+          <View style={[styles.card, { alignItems: 'flex-start' }]}>
+            <Skeleton width={150} height={14} borderRadius={4} style={{ marginBottom: 16 }} />
+            <Skeleton width="100%" height={120} borderRadius={8} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -325,8 +335,11 @@ export default function ProgressoScreen({ navigation }) {
 
         {/* Gráfico semanal */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>ATIVIDADE DA SEMANA</Text>
-          <Text style={styles.cardSubLabel}>Percentual de exercícios realizados por dia</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.cardLabelRow}>ATIVIDADE DA SEMANA</Text>
+            <Text style={styles.emBreveBadge}>Em breve</Text>
+          </View>
+          <Text style={styles.cardSubLabel}>Percentual de exercícios (Aguardando liberação do Backend)</Text>
           <BarChart dados={dadosSemana} />
 
           {/* Legenda */}
@@ -427,6 +440,31 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     alignSelf: 'flex-start',
     marginBottom: SPACING.md,
+  },
+  cardLabelRow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMedium,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: SPACING.md,
+  },
+  emBreveBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#F59E0B',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   cardSubLabel: {
     fontSize: 12,

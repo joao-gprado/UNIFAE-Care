@@ -1,4 +1,5 @@
-export const BASE_URL = 'http://185.217.125.219:3000/api/v1';
+export const HOST_URL = 'http://185.217.125.219:3000';
+export const BASE_URL = `${HOST_URL}/api/v1`;
 
 export function buildHeaders(token) {
   return {

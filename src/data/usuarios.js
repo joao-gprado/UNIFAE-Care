@@ -1,13 +1,3 @@
-export const usuarios = [
-  { id: '1', nome: 'Admin UNIFAE', email: 'admin@unifae.br', senha: 'admin' },
-];
-
-export function buscarPorEmail(email) {
-  return usuarios.find(u => u.email.toLowerCase() === email.toLowerCase());
-}
-
-export function validarLogin(email, senha) {
-  const usuario = buscarPorEmail(email);
-  if (!usuario || usuario.senha !== senha) return null;
-  return usuario;
-}
+// src/data/usuarios.js
+// Autenticação é feita exclusivamente via API: POST /api/v1/auth/login
+// Nenhum usuário hardcoded deve existir aqui. Veja LoginScreen.js.

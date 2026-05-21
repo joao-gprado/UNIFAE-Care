@@ -11,12 +11,14 @@ import {
   Platform,
   StatusBar,
   Image,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
-import { ROUTES, buildHeaders } from '../services/api';
+import { ROUTES, buildHeaders, HOST_URL } from '../services/api';
 import { SPACING } from '../theme';
+import Skeleton from '../components/Skeleton';
 
 const COLORS = {
   primary:       '#2A7A3B',
@@ -32,7 +34,8 @@ const COLORS = {
   border:        '#E9EDE9',
 };
 
-const APP_VERSION = 'V2.4.0';
+// Versão exibida no rodapé do perfil — lida do app ou deixada em branco
+const APP_VERSION = '';
 
 // ─── Avatar com iniciais ───────────────────────────────────────────────────────
 
@@ -42,8 +45,6 @@ function Avatar({ name, uri, size = 88, userId, token }) {
   const initials = name
     ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
     : '?';
-
-  const BASE_URL = 'http://185.217.125.219:3000';
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +62,7 @@ function Avatar({ name, uri, size = 88, userId, token }) {
       // 2. Imagem autenticada do servidor (Bypass do erro do React Native)
       if (token) {
         try {
-          const urlCompleta = BASE_URL + uri + '?t=' + Date.now(); // Quebra o cache agressivo
+          const urlCompleta = HOST_URL + uri + '?t=' + Date.now(); // Quebra o cache agressivo
           
           // Baixamos a imagem "na mão" usando o fetch, que não perde o Token
           const response = await fetch(urlCompleta, {
@@ -160,7 +161,7 @@ const smallAvatarStyles = StyleSheet.create({
 
 // ─── Card de pessoa ────────────────────────────────────────────────────────────
 
-function PersonCard({ label, name, subtitle }) {
+function PersonCard({ label, name, subtitle, onEmailPress }) {
   return (
     <View style={cardStyles.container}>
       <Text style={cardStyles.label}>{label}</Text>
@@ -170,6 +171,11 @@ function PersonCard({ label, name, subtitle }) {
           <Text style={cardStyles.name}>{name}</Text>
           {subtitle ? <Text style={cardStyles.subtitle}>{subtitle}</Text> : null}
         </View>
+        {onEmailPress && (
+          <TouchableOpacity style={cardStyles.emailButton} onPress={onEmailPress}>
+            <Text style={cardStyles.emailIcon}>✉️</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -201,6 +207,8 @@ const cardStyles = StyleSheet.create({
   textBlock: { flex: 1 },
   name: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 2 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary },
+  emailButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
+  emailIcon: { fontSize: 18 },
 });
 
 // ─── Card de progresso ─────────────────────────────────────────────────────────
@@ -515,9 +523,19 @@ function getFileInfo(uri) {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Carregando perfil…</Text>
+      <View style={styles.scroll}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Skeleton width={88} height={88} borderRadius={44} />
+            <Skeleton width={140} height={28} borderRadius={6} style={{ marginTop: 14, marginBottom: 8 }} />
+            <Skeleton width={180} height={16} borderRadius={4} style={{ marginBottom: 8 }} />
+          </View>
+          <View style={styles.section}>
+             <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
+             <Skeleton width="100%" height={80} borderRadius={16} style={{ marginBottom: 12 }} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -533,12 +551,14 @@ function getFileInfo(uri) {
     );
   }
 
+  // A API retorna: profile, coordinator
+  // responsibleStudent, weeklyProgress e app não fazem parte da resposta atual
   const {
     profile,
-    responsibleStudent,
-    coordinator,
-    weeklyProgress,
-    app,
+    responsibleStudent = null,
+    coordinator = null,
+    weeklyProgress = null,
+    app = null,
   } = data;
 
   return (
@@ -561,6 +581,7 @@ function getFileInfo(uri) {
             />
           </TouchableOpacity>
           <Text style={styles.userName}>{profile?.name}</Text>
+          {profile?.email && <Text style={styles.userEmail}>{profile.email}</Text>}
           <Text style={styles.appName}>{app?.name ?? 'Unifae Care'}</Text>
         </View>
 
@@ -571,13 +592,15 @@ function getFileInfo(uri) {
               label="FISIOTERAPEUTA RESPONSÁVEL"
               name={responsibleStudent.name}
               subtitle={responsibleStudent.email}
+              onEmailPress={responsibleStudent.email ? () => Linking.openURL(`mailto:${responsibleStudent.email}`) : undefined}
             />
           ) : null}
           {coordinator ? (
             <PersonCard
               label="COORDENADOR RESPONSÁVEL"
               name={coordinator.name}
-              subtitle={coordinator.email}
+              subtitle={`${coordinator.primarySpecialty || 'Especialista'} • ${coordinator.email}`}
+              onEmailPress={coordinator.email ? () => Linking.openURL(`mailto:${coordinator.email}`) : undefined}
             />
           ) : null}
           {weeklyProgress != null ? (
@@ -627,8 +650,9 @@ const styles = StyleSheet.create({
   userName: {
     marginTop: 14, fontSize: 24, fontWeight: '800',
     color: COLORS.textPrimary, letterSpacing: -0.3, textAlign: 'center',
-    flexShrink: 1, marginBottom: 8,
+    flexShrink: 1, marginBottom: 4,
   },
+  userEmail: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
   appName: { marginTop: 4, fontSize: 13, color: COLORS.primary, fontWeight: '500', flexShrink: 1 },
   section: { marginBottom: SPACING.lg, marginHorizontal: 0 },
   sectionTitle: {

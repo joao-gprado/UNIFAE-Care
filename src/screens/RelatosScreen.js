@@ -19,13 +19,13 @@ import { ROUTES, buildHeaders } from '../services/api';
 
 // ─── Dados de opções ────────────────────────────────────────────────────────
 
+// Níveis de dor mapeados para os valores aceitos pela API: NONE, MILD, MODERATE, SEVERE, VERY_SEVERE
 const NIVEIS_DOR = [
-  { score: 0, label: 'Sem dor', emoji: '😊', cor: '#56CCF2', descricao: 'Sem desconforto algum' },
-  { score: 2, label: 'Leve', emoji: '🙂', cor: '#6FCF97', descricao: 'Levemente perceptível' },
-  { score: 4, label: 'Moderada', emoji: '😐', cor: '#A8E063', descricao: 'Incomoda, mas suportável' },
-  { score: 6, label: 'Considerável', emoji: '😟', cor: '#F2C94C', descricao: 'Dificulta atividades' },
-  { score: 8, label: 'Intensa', emoji: '😣', cor: '#F2994A', descricao: 'Muito desconforto' },
-  { score: 10, label: 'Insuportável', emoji: '😱', cor: '#EB5757', descricao: 'Dor máxima' },
+  { level: 'NONE',        score: 0,  label: 'Sem dor',       emoji: '😊', cor: '#56CCF2', descricao: 'Sem desconforto algum' },
+  { level: 'MILD',        score: 2,  label: 'Leve',          emoji: '🙂', cor: '#6FCF97', descricao: 'Levemente perceptível' },
+  { level: 'MODERATE',    score: 5,  label: 'Moderada',      emoji: '😐', cor: '#A8E063', descricao: 'Incomoda, mas suportável' },
+  { level: 'SEVERE',      score: 8,  label: 'Intensa',       emoji: '😣', cor: '#F2994A', descricao: 'Muito desconforto' },
+  { level: 'VERY_SEVERE', score: 10, label: 'Insuportável',  emoji: '😱', cor: '#EB5757', descricao: 'Dor máxima' },
 ];
 
 const LOCAIS_DOR = [
@@ -72,12 +72,12 @@ function EscalaDor({ selected, onSelect }) {
   return (
     <View style={escalaStyles.grid}>
       {NIVEIS_DOR.map(item => {
-        const active = selected === item.score;
+        const active = selected === item.level;
         return (
           <TouchableOpacity
-            key={item.score}
+            key={item.level}
             style={[escalaStyles.card, active && { borderColor: item.cor, backgroundColor: item.cor + '18' }]}
-            onPress={() => onSelect(item.score)}
+            onPress={() => onSelect(item.level)}
             activeOpacity={0.8}
           >
             <Text style={escalaStyles.emoji}>{item.emoji}</Text>
@@ -111,16 +111,16 @@ const escalaStyles = StyleSheet.create({
   label: { fontSize: 11, color: COLORS.textMedium, fontWeight: '500', marginTop: 2 },
 });
 
-function SelectChip({ item, selected, onPress }) {
+function SelectChip({ item, selected, onPress, disabled }) {
   const active = selected.includes(item.id);
   return (
     <TouchableOpacity
-      style={[chipStyles.chip, active && chipStyles.chipActive]}
-      onPress={() => onPress(item.id)}
-      activeOpacity={0.8}
+      style={[chipStyles.chip, active && chipStyles.chipActive, disabled && chipStyles.chipDisabled]}
+      onPress={disabled ? undefined : () => onPress(item.id)}
+      activeOpacity={disabled ? 1 : 0.8}
     >
-      <Text style={chipStyles.emoji}>{item.emoji}</Text>
-      <Text style={[chipStyles.label, active && chipStyles.labelActive]}>{item.label}</Text>
+      <Text style={[chipStyles.emoji, disabled && { opacity: 0.5 }]}>{item.emoji}</Text>
+      <Text style={[chipStyles.label, active && chipStyles.labelActive, disabled && { color: '#9CA3AF' }]}>{item.label}</Text>
     </TouchableOpacity>
   );
 }
@@ -153,12 +153,17 @@ const chipStyles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700',
   },
+  chipDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
 });
 
 // ─── Tela principal ─────────────────────────────────────────────────────────
 
 export default function RelatosScreen() {
-  const [nivelDor, setNivelDor] = useState(null);
+  const [nivelDor, setNivelDor] = useState(null); // armazena o 'level' string da API (ex: 'MILD')
   const [locais, setLocais] = useState([]);
   const [momentos, setMomentos] = useState([]);
   const [observacoes, setObservacoes] = useState('');
@@ -173,9 +178,10 @@ export default function RelatosScreen() {
     }
   };
 
-  const nivelSelecionado = NIVEIS_DOR.find(n => n.score === nivelDor);
+  const nivelSelecionado = NIVEIS_DOR.find(n => n.level === nivelDor);
 
-  const podeEnviar = nivelDor !== null && locais.length > 0;
+  // A API atual não suporta locais e momentos, então validamos apenas o nível de dor.
+  const podeEnviar = nivelDor !== null;
 
   const resetForm = () => {
     setNivelDor(null);
@@ -189,7 +195,7 @@ export default function RelatosScreen() {
     if (!podeEnviar) {
       Alert.alert(
         'Campos obrigatórios',
-        'Selecione o nível de dor e pelo menos um local afetado.',
+        'Selecione o nível de dor.',
       );
       return;
     }
@@ -199,12 +205,8 @@ export default function RelatosScreen() {
       const token = await AsyncStorage.getItem('@token');
       if (!token) throw new Error('Token não encontrado.');
 
-      const body = {
-        score: nivelDor,
-        location: locais.join(', '),
-        when: momentos.join(', '),
-        notes: observacoes.trim(),
-      };
+      // A API /app/home/pain espera apenas { level: "NONE"|"MILD"|"MODERATE"|"SEVERE"|"VERY_SEVERE" }
+      const body = { level: nivelDor };
 
       const response = await fetch(ROUTES.pain, {
         method: 'POST',
@@ -301,7 +303,10 @@ export default function RelatosScreen() {
 
         {/* ── Seção 2: Local ── */}
         <View style={styles.section}>
-          <SectionTitle>2. Onde dói? * (pode marcar mais de um)</SectionTitle>
+          <View style={styles.sectionHeaderRow}>
+            <SectionTitle>2. Onde dói? *</SectionTitle>
+            <Text style={styles.emBreveBadge}>Em breve</Text>
+          </View>
           <View style={styles.chipWrap}>
             {LOCAIS_DOR.map(item => (
               <SelectChip
@@ -309,6 +314,7 @@ export default function RelatosScreen() {
                 item={item}
                 selected={locais}
                 onPress={id => toggleItem(id, locais, setLocais)}
+                disabled={true}
               />
             ))}
           </View>
@@ -316,7 +322,10 @@ export default function RelatosScreen() {
 
         {/* ── Seção 3: Quando ── */}
         <View style={styles.section}>
-          <SectionTitle>3. Quando a dor ocorre? (opcional)</SectionTitle>
+          <View style={styles.sectionHeaderRow}>
+            <SectionTitle>3. Quando a dor ocorre? (opcional)</SectionTitle>
+            <Text style={styles.emBreveBadge}>Em breve</Text>
+          </View>
           <View style={styles.chipWrap}>
             {MOMENTOS.map(item => (
               <SelectChip
@@ -324,6 +333,7 @@ export default function RelatosScreen() {
                 item={item}
                 selected={momentos}
                 onPress={id => toggleItem(id, momentos, setMomentos)}
+                disabled={true}
               />
             ))}
           </View>
@@ -359,7 +369,7 @@ export default function RelatosScreen() {
 
         {!podeEnviar && (
           <Text style={styles.helperText}>
-            * Preencha o nível de dor e pelo menos um local para habilitar o envio.
+            * Preencha o nível de dor para habilitar o envio.
           </Text>
         )}
       </ScrollView>
@@ -392,6 +402,23 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SPACING.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  emBreveBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#F59E0B',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   nivelPreview: {
     flexDirection: 'row',
