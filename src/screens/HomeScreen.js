@@ -1,9 +1,9 @@
 // src/screens/HomeScreen.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, StatusBar, ActivityIndicator, RefreshControl,
-  Animated, Modal
+  Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -15,10 +15,17 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
-import Svg, { Circle } from 'react-native-svg';
+
 import { COLORS, SPACING, RADIUS } from '../theme';
 import RobotAssistant from '../components/RobotAssistant';
 import { ROUTES, buildHeaders } from '../services/api';
+
+import HeaderSection from '../components/home/HeaderSection';
+import PainAlert from '../components/home/PainAlert';
+import PlanCard from '../components/home/PlanCard';
+import ProgressCard from '../components/home/ProgressCard';
+import MilestoneModal from '../components/home/MilestoneModal';
+import Skeleton from '../components/Skeleton';
 
 // ─── Helpers ───
 async function agendarNotificacaoLocal(shouldSchedule) {
@@ -47,257 +54,6 @@ async function agendarNotificacaoLocal(shouldSchedule) {
     console.log('Erro ao agendar notificação', e);
   }
 }
-
-function getMensagemProgresso(pct) {
-  if (pct <= 40) return { texto: 'Você precisa se exercitar. Vamos começar?', emoji: '💪' };
-  if (pct <= 79) return { texto: 'Você está indo bem!\nContinue assim.', emoji: '💚' };
-  return { texto: 'Parabéns pelo resultado da semana!', emoji: '🏆' };
-}
-
-// ─── Progress Ring ───
-function ProgressRing({ percent, size = 90, stroke = 9 }) {
-  const safe   = Math.min(100, Math.max(0, percent));
-  const r      = (size - stroke) / 2;
-  const circ   = 2 * Math.PI * r;
-  const offset = circ - (safe / 100) * circ;
-  const cx     = size / 2;
-  const cy     = size / 2;
-
-  return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size}>
-        <Circle cx={cx} cy={cy} r={r} stroke="#DDE8DE" strokeWidth={stroke} fill="none" />
-        <Circle cx={cx} cy={cy} r={r} stroke={COLORS.primary} strokeWidth={stroke} fill="none" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`} />
-      </Svg>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: size * 0.2, fontWeight: '800', color: '#1a5d38' }}>{safe}%</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function HeaderSection({ nome, streak, nextVisitDate, painToday }) {
-  const dataFormatada = nextVisitDate 
-    ? new Date(nextVisitDate).toLocaleDateString('pt-BR') 
-    : null;
-
-  let subtitle = 'Seu cuidado diário faz toda a diferença na sua recuperação.';
-  
-  // Saudação Dinâmica baseada no último registro de dor ou no streak
-  if (painToday && painToday.recorded && painToday.level !== undefined) {
-    if (painToday.level >= 7) {
-      subtitle = 'Vi que a dor estava forte. Tente focar em exercícios mais suaves hoje.';
-    } else if (painToday.level <= 3) {
-      subtitle = 'Que ótimo que a dor está controlada! Vamos manter o ótimo ritmo.';
-    }
-  } else if (streak >= 3) {
-    subtitle = `Você já está numa ofensiva de ${streak} dias! Que dedicação incrível.`;
-  }
-
-  return (
-    <View style={headerStyles.container}>
-      <View style={headerStyles.textBlock}>
-        <Text style={headerStyles.greeting}>Olá, {nome}!</Text>
-        <Text style={headerStyles.subtitle}>{subtitle}</Text>
-        {dataFormatada && (
-          <View style={headerStyles.visitRow}>
-            <Text style={headerStyles.visitIcon}>📅</Text>
-            <Text style={headerStyles.visitText}>Próx. Consulta: <Text style={{fontWeight: '700'}}>{dataFormatada}</Text></Text>
-          </View>
-        )}
-      </View>
-      <View style={headerStyles.streakBox}>
-        <Text style={headerStyles.streakEmoji}>🔥</Text>
-        <Text style={headerStyles.streakNumber}>{streak}</Text>
-        <Text style={headerStyles.streakLabel}>dias</Text>
-      </View>
-    </View>
-  );
-}
-
-const headerStyles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.lg },
-  textBlock: { flex: 1, paddingRight: SPACING.md },
-  greeting: { fontSize: 28, fontWeight: '800', color: '#1a5d38', letterSpacing: -0.5, marginBottom: 6 },
-  subtitle: { fontSize: 14, color: COLORS.textMedium, lineHeight: 21, marginBottom: 8 },
-  visitRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDF7EE', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' },
-  visitIcon: { fontSize: 14, marginRight: 6 },
-  visitText: { fontSize: 13, color: COLORS.primary },
-  streakBox: { width: 56, height: 72, borderRadius: 16, backgroundColor: '#FFF7E6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFE4B5', marginTop: 4 },
-  streakEmoji: { fontSize: 20, marginBottom: 2 },
-  streakNumber: { fontSize: 18, fontWeight: '800', color: '#E67E22', lineHeight: 20 },
-  streakLabel: { fontSize: 10, fontWeight: '600', color: '#E67E22', textTransform: 'uppercase' },
-});
-
-// ─── Subcomponente: PainAlert ───
-function PainAlert({ navigation }) {
-  return (
-    <TouchableOpacity style={painAlertStyles.card} activeOpacity={0.9} onPress={() => navigation.navigate('Relatos')}>
-      <View style={painAlertStyles.iconBox}>
-        <Text style={painAlertStyles.icon}>📋</Text>
-      </View>
-      <View style={painAlertStyles.textBlock}>
-        <Text style={painAlertStyles.title}>Como você está hoje?</Text>
-        <Text style={painAlertStyles.desc}>Por favor, registre seu nível de dor para acompanharmos sua evolução.</Text>
-      </View>
-      <Text style={painAlertStyles.chevron}>›</Text>
-    </TouchableOpacity>
-  );
-}
-
-const painAlertStyles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: SPACING.md, marginBottom: SPACING.lg, borderRadius: RADIUS.xl, padding: SPACING.md, borderWidth: 1, borderColor: '#FCA5A5' },
-  iconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  icon: { fontSize: 20 },
-  textBlock: { flex: 1 },
-  title: { fontSize: 15, fontWeight: '700', color: '#991B1B', marginBottom: 2 },
-  desc: { fontSize: 13, color: '#B91C1C', lineHeight: 18 },
-  chevron: { fontSize: 24, color: '#F87171', paddingLeft: 8 },
-});
-
-// ─── Subcomponente: PlanCard ───
-function PlanCard({ nextExercise, plan, onStart }) {
-  const handleIniciar = () => {
-    if (!nextExercise) return;
-    onStart?.(nextExercise);
-  };
-
-  return (
-    <View style={planStyles.card}>
-      <View style={planStyles.cardHeader}>
-        <Text style={planStyles.cardTitle}>Próximo passo</Text>
-        {plan && (
-          <Text style={planStyles.badge}>
-            {plan.completedExercises}/{plan.totalExercises} concluídos
-          </Text>
-        )}
-      </View>
-
-      {nextExercise ? (
-        <View style={planStyles.exerciseBlock}>
-          <View style={planStyles.exerciseInfo}>
-            <Text style={planStyles.exerciseTitle}>{nextExercise.exerciseName || nextExercise.title}</Text>
-            {nextExercise.axis || nextExercise.problem ? (
-              <Text style={planStyles.exerciseDesc}>{(nextExercise.axis ? nextExercise.axis + ' • ' : '') + (nextExercise.problem || '')}</Text>
-            ) : null}
-            {nextExercise.objective ? (
-              <View style={planStyles.timeRow}>
-                <Text style={planStyles.clockIcon}>🎯</Text>
-                <Text style={planStyles.timeText}>{nextExercise.objective}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-      ) : (
-        <View style={planStyles.emptyBlock}>
-          <Text style={planStyles.emptyText}>🎉 Todos os exercícios de hoje foram concluídos!</Text>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[planStyles.startButton, !nextExercise && planStyles.startButtonDisabled]}
-        onPress={handleIniciar}
-        activeOpacity={0.85}
-        disabled={!nextExercise}
-      >
-        <Text style={planStyles.startButtonText}>
-          {nextExercise ? 'Iniciar exercício' : 'Plano completo'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const planStyles = StyleSheet.create({
-  card: { backgroundColor: COLORS.backgroundWhite, borderRadius: RADIUS.xl, marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.md, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark },
-  badge: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
-  exerciseBlock: { backgroundColor: '#F8FAF8', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
-  exerciseInfo: {},
-  exerciseTitle: { fontSize: 17, fontWeight: '700', color: '#1a5d38', marginBottom: 4 },
-  exerciseDesc: { fontSize: 13, color: COLORS.textMedium, marginBottom: 10 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  clockIcon: { fontSize: 13 },
-  timeText: { fontSize: 13, color: COLORS.textMedium, fontWeight: '500' },
-  emptyBlock: { backgroundColor: '#F0FBF3', borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md, alignItems: 'center' },
-  emptyText: { fontSize: 14, color: COLORS.primary, fontWeight: '600', textAlign: 'center' },
-  startButton: { backgroundColor: '#1a5d38', borderRadius: RADIUS.lg, paddingVertical: 16, alignItems: 'center' },
-  startButtonDisabled: { backgroundColor: COLORS.textLight },
-  startButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-});
-
-// ─── Subcomponente: ProgressCard ───
-function ProgressCard({ percent }) {
-  const { texto, emoji } = getMensagemProgresso(percent);
-  return (
-    <View style={progressStyles.card}>
-      <Text style={progressStyles.cardTitle}>Seu progresso da semana</Text>
-      <View style={progressStyles.row}>
-        <ProgressRing percent={percent} size={90} stroke={9} />
-        <View style={progressStyles.messageBlock}>
-          <Text style={progressStyles.emoji}>{emoji}</Text>
-          <Text style={progressStyles.message}>{texto}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-const progressStyles = StyleSheet.create({
-  card: { backgroundColor: COLORS.backgroundWhite, borderRadius: RADIUS.xl, marginHorizontal: SPACING.md, marginBottom: SPACING.md, padding: SPACING.md, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, marginBottom: SPACING.md },
-  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  messageBlock: { flex: 1, gap: 4 },
-  emoji: { fontSize: 22, marginBottom: 2 },
-  message: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, lineHeight: 20 },
-});
-
-// ─── Subcomponente: Milestone Modal ───
-function MilestoneModal({ visible, streak, onClose }) {
-  const scaleAnim = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      scaleAnim.setValue(0);
-    }
-  }, [visible]);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={milestoneStyles.overlay}>
-        <Animated.View style={[milestoneStyles.card, { transform: [{ scale: scaleAnim }] }]}>
-          <Text style={milestoneStyles.emoji}>🔥</Text>
-          <Text style={milestoneStyles.title}>Que Incrível!</Text>
-          <Text style={milestoneStyles.desc}>
-            Você atingiu uma ofensiva de <Text style={{fontWeight: '800', color: '#E67E22'}}>{streak} dias</Text> consecutivos se cuidando!
-          </Text>
-          <TouchableOpacity style={milestoneStyles.btn} onPress={onClose} activeOpacity={0.8}>
-            <Text style={milestoneStyles.btnText}>Continuar</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-}
-
-const milestoneStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  card: { backgroundColor: '#fff', borderRadius: 24, padding: 32, alignItems: 'center', width: '85%', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
-  emoji: { fontSize: 64, marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1a5d38', marginBottom: 8 },
-  desc: { fontSize: 15, color: COLORS.textMedium, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  btn: { backgroundColor: '#E67E22', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 99 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-});
 
 // ─── Lógica de Streak ───
 async function updateAndGetStreak() {
@@ -341,17 +97,42 @@ async function updateAndGetStreak() {
 export default function HomeScreen({ navigation }) {
   const [nomeUsuario, setNomeUsuario] = useState('');
   const [nextVisitDate, setNextVisitDate] = useState(null);
-  const [progressoSemanal, setProgressoSemanal] = useState(0);
-  const [nextExercise, setNextExercise] = useState(null);
-  const [plan, setPlan] = useState(null);
-  const [painToday, setPainToday] = useState(null);
-  const [motivationalMessage, setMotivationalMessage] = useState(null);
+  
+  // Agrupamento de estados da Home (Fase 1)
+  const [homeData, setHomeData] = useState({
+    progressoSemanal: 0,
+    nextExercise: null,
+    plan: null,
+    painToday: null,
+    motivationalMessage: null,
+  });
+
   const [streak, setStreak] = useState(1);
   const [showMilestone, setShowMilestone] = useState(false);
   const [milestoneValue, setMilestoneValue] = useState(0);
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState(null);
+
+  // Animações (Fase 3)
+  const planAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const animarEntrada = useCallback(() => {
+    planAnim.setValue(0);
+    progressAnim.setValue(0);
+    Animated.stagger(150, [
+      Animated.spring(planAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
+      Animated.spring(progressAnim, { toValue: 1, friction: 6, useNativeDriver: true })
+    ]).start();
+  }, [planAnim, progressAnim]);
+
+  useEffect(() => {
+    if (!loading && !erro) {
+      animarEntrada();
+    }
+  }, [loading, erro, animarEntrada]);
 
   const carregarDados = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -360,30 +141,28 @@ export default function HomeScreen({ navigation }) {
     setErro(null);
 
     try {
-      // Implementação do Cache SWR (Stale-While-Revalidate)
       if (!isRefresh) {
         const cache = await AsyncStorage.getItem('@homeCache');
         if (cache) {
           try {
             const json = JSON.parse(cache);
-            if (json.plan) {
-              setProgressoSemanal(json.plan.percentCompleted ?? 0);
-              setPlan(json.plan);
-            }
-            setNextExercise(json.nextExercise ?? null);
-            setPainToday(json.painToday ?? null);
-            setMotivationalMessage(json.motivation ?? null);
-            setLoading(false); // Já exibe a interface com o cache!
+            setHomeData({
+              progressoSemanal: json.plan?.percentCompleted ?? 0,
+              plan: json.plan ?? null,
+              nextExercise: json.nextExercise ?? null,
+              painToday: json.painToday ?? null,
+              motivationalMessage: json.motivation ?? null,
+            });
+            setLoading(false); 
           } catch(e) {}
         } else {
-          setLoading(true); // Exibe spinner se não há cache
+          setLoading(true); 
         }
       }
 
       const token = await AsyncStorage.getItem('@token');
       const headers = buildHeaders(token);
 
-      // Carrega info local
       const usuarioSalvo = await AsyncStorage.getItem('@usuario');
       if (usuarioSalvo) {
         const u = JSON.parse(usuarioSalvo);
@@ -398,25 +177,25 @@ export default function HomeScreen({ navigation }) {
          setShowMilestone(true);
       }
 
-      // Chamada em background para revalidar os dados mais atualizados
       const homeResponse = await fetch(ROUTES.home, { headers });
       if (homeResponse.ok) {
         const json = await homeResponse.json();
         
-        // Atualiza o cache silenciosamente
         await AsyncStorage.setItem('@homeCache', JSON.stringify(json));
         
+        setHomeData({
+          progressoSemanal: json.plan?.percentCompleted ?? 0,
+          plan: json.plan ?? null,
+          nextExercise: json.nextExercise ?? null,
+          painToday: json.painToday ?? null,
+          motivationalMessage: json.motivation ?? null,
+        });
+
         if (json.plan) {
-          setProgressoSemanal(json.plan.percentCompleted ?? 0);
-          setPlan(json.plan);
-          
           const totalEx = json.plan.totalExercises || 0;
           const isComplete = totalEx > 0 && (json.plan.completedExercises >= totalEx);
           agendarNotificacaoLocal(!isComplete);
         }
-        setNextExercise(json.nextExercise ?? null);
-        setPainToday(json.painToday ?? null);
-        setMotivationalMessage(json.motivation ?? null);
       } else {
         const cache = await AsyncStorage.getItem('@homeCache');
         if (!cache) setErro('Não foi possível carregar os dados. Verifique sua conexão.');
@@ -436,14 +215,6 @@ export default function HomeScreen({ navigation }) {
     });
     return unsubscribe;
   }, [navigation, carregarDados]);
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.primary ?? '#2A7A3B'} />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.root}>
@@ -467,39 +238,54 @@ export default function HomeScreen({ navigation }) {
           </View>
         ) : null}
 
-        <HeaderSection nome={nomeUsuario || 'Usuário'} streak={streak} nextVisitDate={nextVisitDate} painToday={painToday} />
+        <HeaderSection nome={nomeUsuario || 'Usuário'} streak={streak} nextVisitDate={nextVisitDate} painToday={homeData.painToday} />
 
-        {painToday && painToday.recorded === false && (
-          <PainAlert navigation={navigation} />
+        {/* Skeleton State */}
+        {loading ? (
+          <View style={{ paddingHorizontal: SPACING.md, gap: 16, marginTop: 10 }}>
+            <Skeleton width="100%" height={160} borderRadius={RADIUS.xl} />
+            <Skeleton width="100%" height={140} borderRadius={RADIUS.xl} />
+            <Skeleton width="100%" height={120} borderRadius={RADIUS.xl} />
+          </View>
+        ) : (
+          <>
+            {homeData.painToday && homeData.painToday.recorded === false && (
+              <PainAlert navigation={navigation} />
+            )}
+
+            <View style={styles.motivationCard}>
+              <View style={styles.motivationHeader}>
+                <Text style={styles.motivationIcon}>💡</Text>
+                <Text style={styles.motivationTitle}>Citação do dia</Text>
+              </View>
+              <View style={styles.motivationContent}>
+                <View style={styles.robotContainer}>
+                  <RobotAssistant size={110} />
+                </View>
+                <View style={styles.quoteContainer}>
+                  <Text style={styles.motivationText}>
+                    "{homeData.motivationalMessage?.message ?? 'Vamos começar o dia com energia!'}"
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <Animated.View style={{ opacity: planAnim, transform: [{ translateY: planAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+              <PlanCard
+                nextExercise={homeData.nextExercise}
+                plan={homeData.plan}
+                onStart={item => navigation.navigate('ExerciseDetail', {
+                  prescriptionItemId: item.prescriptionItemId || item.id,
+                  titulo: item.exerciseName || item.title,
+                })}
+              />
+            </Animated.View>
+            
+            <Animated.View style={{ opacity: progressAnim, transform: [{ translateY: progressAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+              <ProgressCard percent={homeData.progressoSemanal} />
+            </Animated.View>
+          </>
         )}
-
-        <View style={styles.motivationCard}>
-          <View style={styles.motivationHeader}>
-            <Text style={styles.motivationIcon}>💡</Text>
-            <Text style={styles.motivationTitle}>Citação do dia</Text>
-          </View>
-          <View style={styles.motivationContent}>
-            <View style={styles.robotContainer}>
-              <RobotAssistant size={110} />
-            </View>
-            <View style={styles.quoteContainer}>
-              <Text style={styles.motivationText}>
-                "{motivationalMessage?.message ?? 'Vamos começar o dia com energia!'}"
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <PlanCard
-          nextExercise={nextExercise}
-          plan={plan}
-          onStart={item => navigation.navigate('ExerciseDetail', {
-            prescriptionItemId: item.prescriptionItemId || item.id,
-            titulo: item.exerciseName || item.title,
-          })}
-        />
-        
-        <ProgressCard percent={progressoSemanal} />
       </ScrollView>
     </View>
   );
