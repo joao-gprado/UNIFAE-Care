@@ -138,6 +138,7 @@ export default function ExerciseDetailScreen({ navigation, route }) {
   const [detailsError, setDetailsError] = useState(null);
   const [checkedSteps, setCheckedSteps] = useState([]);
   const [coordinatorName, setCoordinatorName] = useState('');
+  const [isFavorite, setIsFavorite] = useState(false);
 
   const prescriptionItemId = route?.params?.prescriptionItemId ?? route?.params?.id ?? null;
   const tituloParam   = route?.params?.titulo   ?? '';
@@ -217,8 +218,36 @@ export default function ExerciseDetailScreen({ navigation, route }) {
     }
   }
 
+  async function checkFavorite() {
+    if (!prescriptionItemIdNumerico) return;
+    try {
+      const favsStr = await AsyncStorage.getItem('@favorites');
+      if (favsStr) {
+        const favs = JSON.parse(favsStr);
+        setIsFavorite(favs.includes(prescriptionItemIdNumerico));
+      }
+    } catch(e) {}
+  }
+
+  async function toggleFavorite() {
+    if (!prescriptionItemIdNumerico) return;
+    Haptics.selectionAsync();
+    try {
+      const favsStr = await AsyncStorage.getItem('@favorites');
+      let favs = favsStr ? JSON.parse(favsStr) : [];
+      if (isFavorite) {
+        favs = favs.filter(id => id !== prescriptionItemIdNumerico);
+      } else {
+        favs.push(prescriptionItemIdNumerico);
+      }
+      await AsyncStorage.setItem('@favorites', JSON.stringify(favs));
+      setIsFavorite(!isFavorite);
+    } catch(e) {}
+  }
+
   useEffect(() => {
     carregarDetalhesExercicio();
+    checkFavorite();
   }, []);
 
   const displayTitle       = exercise?.title       || tituloParam   || 'Exercício';
@@ -304,13 +333,13 @@ export default function ExerciseDetailScreen({ navigation, route }) {
         ) : null}
 
         <View style={styles.headerRow}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
             <Feather name="arrow-left" size={20} color={COLORS.textDark} />
           </Pressable>
           <Text style={styles.pageTitle}>UNIFAE Care</Text>
-          <View style={styles.brandBadge}>
-            <Text style={styles.brandText}>UNIFAE</Text>
-          </View>
+          <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+            <MaterialCommunityIcons name={isFavorite ? "heart" : "heart-outline"} size={24} color={isFavorite ? "#EF4444" : COLORS.textDark} />
+          </TouchableOpacity>
         </View>
 
         {tags.length > 0 ? (
@@ -407,6 +436,7 @@ const styles = StyleSheet.create({
   pageTitle:  { fontSize: 16, fontWeight: '700', color: COLORS.textDark },
   brandBadge: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   brandText: { fontSize: 10, fontWeight: '700', color: COLORS.primary },
+  favoriteButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: SPACING.md, marginBottom: SPACING.md },
   pill: { backgroundColor: '#E6F3E9', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
   pillText: { fontSize: 11, fontWeight: '700', color: COLORS.primary, letterSpacing: 0.5 },

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
   Alert, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform,
@@ -27,6 +28,7 @@ export default function LoginScreen({ navigation }) {
 
   async function entrar() {
     if (!email || !senha) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Atenção', 'Preencha e-mail e senha.');
       return;
     }
@@ -40,6 +42,7 @@ export default function LoginScreen({ navigation }) {
       });
       const json = await response.json();
       if (response.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await AsyncStorage.setItem('@token', json.access_token);
         await AsyncStorage.setItem('@usuario', JSON.stringify(json.user ?? json));
         console.log('consentRequired:', JSON.stringify(json.consentRequired));
@@ -49,10 +52,12 @@ export default function LoginScreen({ navigation }) {
           navigation.replace('MainTabs');
         }
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         const mensagem = json.message || json.error || 'E-mail ou senha incorretos.';
         Alert.alert('Erro', mensagem);
       }
     } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Erro de conexão', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
     } finally {
       setCarregando(false);
