@@ -23,7 +23,9 @@ export default function LoginScreen({ navigation }) {
         setApps(arr);
         if (arr.length === 1) setAppSelecionado(arr[0]);
       })
-      .catch(() => {});
+      .catch((error) => {
+        console.error('Erro ao buscar lista de aplicativos:', error);
+      });
   }, []);
 
   async function entrar() {
@@ -45,7 +47,6 @@ export default function LoginScreen({ navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await AsyncStorage.setItem('@token', json.access_token);
         await AsyncStorage.setItem('@usuario', JSON.stringify(json.user ?? json));
-        console.log('consentRequired:', JSON.stringify(json.consentRequired));
         if (json.consentRequired) {
           navigation.replace('AceitarTermo', { consentTermId: json.consentRequired.consentTermId });
         } else {
@@ -134,7 +135,7 @@ export default function LoginScreen({ navigation }) {
 
         <View style={styles.rodapeWrapper}>
           <Text style={styles.rodapeTexto}>Não possui uma conta? </Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert('Em desenvolvimento', 'A tela de cadastro será implementada em breve.')}>
             <Text style={styles.link}>Cadastre-se</Text>
           </TouchableOpacity>
         </View>
