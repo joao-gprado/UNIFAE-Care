@@ -82,10 +82,10 @@ function Avatar({ name, uri, size = 88, userId, token }) {
             };
             reader.readAsDataURL(blob);
           } else {
-            console.log("Servidor recusou a imagem:", response.status);
+            // Servidor recusou a imagem
           }
         } catch (e) {
-          console.log("Erro ao baixar avatar autenticado:", e);
+          // Erro ao baixar avatar
         }
       }
     }
@@ -334,7 +334,7 @@ export default function ProfileScreen({ navigation }) {
       const t = await AsyncStorage.getItem('@token');
       setToken(t);
     } catch (error) {
-      console.log('Erro ao obter token:', error);
+      // Erro silencioso ao tentar obter token
     }
   }
 
@@ -356,7 +356,6 @@ export default function ProfileScreen({ navigation }) {
       });
       const json = await response.json();
       if (response.ok) {
-        console.log("Dados do Perfil recebidos:", json.profile);
         setPhotoUri(null); // Força limpar a versão local temporária após ler com sucesso do servidor
         setData(json);
 
