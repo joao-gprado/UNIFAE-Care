@@ -15,6 +15,11 @@ async function aceitar() {
   try {
     const token = await AsyncStorage.getItem('@token');
 
+    console.log('=== ACEITAR TERMO ===');
+    console.log('Token:', token);
+    console.log('consentTermId:', consentTermId);
+    console.log('URL:', ROUTES.consentAccept);
+
     const response = await fetch(ROUTES.consentAccept, {
       method: 'POST',
       headers: buildHeaders(token),
@@ -23,12 +28,16 @@ async function aceitar() {
 
     const json = await response.json();
 
+    console.log('Status:', response.status);
+    console.log('Resposta:', JSON.stringify(json));
+
     if (response.ok) {
       navigation.replace('MainTabs');
     } else {
       Alert.alert('Erro', json.message || 'Não foi possível registrar o consentimento.');
     }
   } catch (error) {
+    console.log('Erro catch:', error.message);
     Alert.alert('Erro de conexão', 'Verifique sua internet e tente novamente.');
   } finally {
     setCarregando(false);

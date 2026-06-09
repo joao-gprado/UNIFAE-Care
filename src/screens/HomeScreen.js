@@ -51,7 +51,7 @@ async function agendarNotificacaoLocal(shouldSchedule) {
       });
     }
   } catch (e) {
-    // Falha silenciosa no agendamento de notificação local
+    console.log('Erro ao agendar notificação', e);
   }
 }
 
