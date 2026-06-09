@@ -1,4 +1,4 @@
-export const HOST_URL = process.env.EXPO_PUBLIC_API_URL;
+export const HOST_URL = 'http://185.217.125.219:3000';
 export const BASE_URL = `${HOST_URL}/api/v1`;
 
 export function buildHeaders(token) {
